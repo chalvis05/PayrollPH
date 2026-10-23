@@ -2,7 +2,8 @@ name: payrollph
 
 services:
   db:
-    image: postgres:16-alpine
+    # Must match the production server's PostgreSQL major version (18).
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-payrollph}
@@ -12,7 +13,8 @@ services:
       PGTZ: Asia/Manila
     command: ['postgres', '-c', 'timezone=Asia/Manila', '-c', 'log_timezone=Asia/Manila']
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      # PG 18+ images keep data in /var/lib/postgresql/<major>/docker; mount the parent.
+      - pgdata:/var/lib/postgresql
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s

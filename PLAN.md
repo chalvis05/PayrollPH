@@ -216,7 +216,7 @@ session timezone is `Asia/Manila`.
 - Audit middleware/service on payroll run state changes, edits, deletes, reopen.
 - Every route group from §4; payroll run state machine; final-pay service; PDF payslips,
   batch zip, SMTP send; reports (CSV + PDF); backups (pg_dump/pg_restore via the
-  `postgresql16-client` in the API image) + node-cron nightly job with 30-day retention.
+  `postgresql18-client` in the API image — pg_dump must match the server major) + node-cron nightly job with 30-day retention.
 - `pnpm --filter @payrollph/api gen:openapi` writes `openapi.json`, and
   `pnpm --filter @payrollph/web gen:client` runs `openapi-typescript`.
 - Route tests: Vitest + `app.inject()` against a `payrollph_test` database (migrated fresh per run).
@@ -236,7 +236,7 @@ session timezone is `Asia/Manila`.
 
 - Multi-stage Dockerfiles (api: node:20-alpine build → runtime with pg client;
   web: build → nginx:alpine serving `dist` and proxying `/api` → `api:3000`).
-- Compose: `db` (pg16, healthcheck, `pgdata` volume), `api` (`backups` + `uploads` volumes),
+- Compose: `db` (postgres:18-alpine, healthcheck, `pgdata` volume at `/var/lib/postgresql`), `api` (`backups` + `uploads` volumes),
   `web` bound to `127.0.0.1:8080` only.
 - `deploy/deploy.sh` per spec (idempotent, `set -euo pipefail`, `--non-interactive`,
   `--domain`, `--admin-email`, subcommands update|backup|restore|logs|down|status).
