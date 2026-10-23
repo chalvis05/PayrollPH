@@ -3,7 +3,9 @@ import { migrate } from 'drizzle-orm/postgres-js/migrator';
 import { isMain } from '../lib/isMain';
 import { createDb } from './client';
 
-const migrationsFolder = resolve(import.meta.dirname, '../../drizzle');
+// In the production image the bundle lives in dist/, so the folder is given by MIGRATIONS_DIR.
+const migrationsFolder =
+  process.env.MIGRATIONS_DIR ?? resolve(import.meta.dirname, '../../drizzle');
 
 export async function runMigrations(url?: string): Promise<void> {
   const { db, sql } = createDb(url);

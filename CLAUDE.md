@@ -45,13 +45,13 @@ Self-hosted PH payroll for personal use (≤25 active employees). Full plan: `PL
 
 ## Verification commands
 
-| Phase | Command                                                                                                                                             |
-| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1     | `pnpm --filter @payrollph/shared test && pnpm typecheck && pnpm lint`                                                                               |
-| 2     | `docker compose up db -d && pnpm --filter @payrollph/api migrate && pnpm --filter @payrollph/api seed -- --sample`                                  |
-| 3     | `pnpm --filter @payrollph/api test`                                                                                                                 |
-| 4     | `pnpm --filter @payrollph/web build && pnpm typecheck && pnpm lint`                                                                                 |
-| 5     | `./deploy/deploy.sh --non-interactive --domain payroll.test --admin-email you@example.com` then `pnpm --filter @payrollph/web exec playwright test` |
+| Phase | Command                                                                                                                                                                                                                                                                         |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | `pnpm --filter @payrollph/shared test && pnpm typecheck && pnpm lint`                                                                                                                                                                                                           |
+| 2     | `docker compose up db -d && pnpm --filter @payrollph/api migrate && pnpm --filter @payrollph/api seed -- --sample`                                                                                                                                                              |
+| 3     | `pnpm --filter @payrollph/api test`                                                                                                                                                                                                                                             |
+| 4     | `pnpm --filter @payrollph/web build && pnpm typecheck && pnpm lint`                                                                                                                                                                                                             |
+| 5     | On a clean copy with a fresh DB: `POSTGRES_USER=… POSTGRES_DB=… POSTGRES_PASSWORD=… DB_PORT=… ./deploy/deploy.sh --non-interactive --domain payroll.test --admin-email you@example.com` then `BASE_URL=http://localhost:8080 pnpm --filter @payrollph/web exec playwright test` |
 
 ## Status
 
@@ -59,4 +59,13 @@ Self-hosted PH payroll for personal use (≤25 active employees). Full plan: `PL
 - [x] Phase 2 — schema, migrations, cap trigger, seed (re-verified on PostgreSQL 18)
 - [x] Phase 3 — API routes, OpenAPI (62 paths), typed client, 105 route tests
 - [x] Phase 4 — web UI (all screens), browser-reviewed against the dev API
-- [ ] Phase 5
+- [x] Phase 5 — Docker images, deploy.sh, aaPanel README, Playwright smoke test (verified on a clean copy against PG 18)
+
+## Gotchas learned
+
+- Windows: Python text-mode writes CRLF; write shell scripts with `newline='
+'` (bash breaks on CR).
+  `.gitattributes` normalises everything else on commit.
+- Git Bash: `deploy.sh` sets `MSYS_NO_PATHCONV=1`, so host paths passed to `docker` go through
+  `host_path` (cygpath). Container paths stay as written.
+- pnpm 12 downloads its own binary on first run; the Dockerfiles warm it once in the base layer.

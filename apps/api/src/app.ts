@@ -50,7 +50,11 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   const { config } = opts;
   const app = Fastify({
     logger: opts.logger ?? false,
-    trustProxy: true,
+    // A hop count becomes a trust function (same semantics as proxy-addr's numeric form).
+    trustProxy:
+      typeof config.trustProxy === 'number'
+        ? (_address: string, hop: number) => hop < (config.trustProxy as number)
+        : config.trustProxy,
     bodyLimit: 2 * 1024 * 1024,
   }).withTypeProvider<ZodTypeProvider>();
 

@@ -1,6 +1,43 @@
 name: payrollph
 
-# Production stack. PostgreSQL is NOT a container here: the API uses the server's own
-# PostgreSQL 18 (see deploy/README.md). The `api` and `web` services are added in Phase 5.
-# For local development, docker-compose.override.yml adds a PG 18 container as `db`.
-services: {}
+# Production stack: api + web. PostgreSQL is NOT a container here — the API uses the server's
+# own PostgreSQL 18 (see deploy/README.md). For local development, docker-compose.override.yml
+# adds a PG 18 container as `db`; deploy/deploy.sh always passes `-f docker-compose.yml`, so
+# production never loads the override.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      # The server's PostgreSQL, reached through the Docker bridge gateway.
+      DB_HOST: ${DB_HOST:-host.docker.internal}
+      DB_PORT: ${DB_PORT:-5432}
+      # aaPanel nginx -> web nginx -> api: trust exactly these two hops.
+      TRUST_PROXY_HOPS: '2'
+      TZ: Asia/Manila
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - uploads:/data/uploads
+      - backups:/backups
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    # Only aaPanel's nginx (on the same host) may reach this; never publish it publicly.
+    ports:
+      - '127.0.0.1:${WEB_PORT:-8080}:80'
+
+volumes:
+  uploads:
+  backups:

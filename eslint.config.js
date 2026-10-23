@@ -27,6 +27,9 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-imports': 'error',
     },
   },
+  // Plain-JS build scripts run in Node; the pre-paint theme script runs in the browser.
+  { files: ['apps/api/scripts/**/*.mjs'], languageOptions: { globals: globals.node } },
+  { files: ['apps/web/public/**/*.js'], languageOptions: { globals: globals.browser } },
   {
     files: ['apps/web/**/*.{ts,tsx}'],
     ...reactHooks.configs.flat.recommended,

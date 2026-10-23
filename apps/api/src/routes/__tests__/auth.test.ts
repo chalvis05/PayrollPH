@@ -224,6 +224,29 @@ describe('rate limiting (production setting)', () => {
   });
 });
 
+describe('proxy trust (production setting)', () => {
+  it('a spoofed leftmost X-Forwarded-For does not get around the login rate limit', async () => {
+    const limited = await createTestContext({ rateLimit: true, trustProxy: 1 });
+    try {
+      const c = new TestClient(limited.app);
+      const statuses: number[] = [];
+      for (let i = 0; i < 11; i += 1) {
+        // The client invents a new address each time; the proxy appends the real one.
+        const res = await c.request(
+          'POST',
+          '/api/auth/login',
+          { email: OWNER.email, password: 'nope-nope-nope' },
+          { headers: { 'x-forwarded-for': `203.0.113.${i}, 198.51.100.7` } },
+        );
+        statuses.push(res.status);
+      }
+      expect(statuses[10]).toBe(429);
+    } finally {
+      await limited.close();
+    }
+  });
+});
+
 describe('OpenAPI docs', () => {
   it('serves the OpenAPI document and the docs UI', async () => {
     const json = await ctx.app.inject({ method: 'GET', url: '/api/docs/json' });

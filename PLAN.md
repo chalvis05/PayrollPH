@@ -251,9 +251,11 @@ session timezone is `Asia/Manila`.
 - `deploy/README.md`: aaPanel walkthrough (screens as text) + troubleshooting.
 - Playwright smoke test: setup wizard → add employee → run payroll → download the payslip PDF
   and check it is a PDF.
-- **Verify:** `./deploy/deploy.sh --non-interactive --domain payroll.test --admin-email you@example.com`
-  on a clean clone (in Git Bash/WSL here, or on the VPS), then
-  `pnpm --filter @payrollph/web exec playwright test`
+- **Verify:** on a clean copy of the commit, against a freshly created role + database on the
+  server's PostgreSQL 18 (passed as `POSTGRES_USER/DB/PASSWORD`, `DB_PORT`):
+  `./deploy/deploy.sh --non-interactive --domain payroll.test --admin-email you@example.com`,
+  then `BASE_URL=http://localhost:8080 pnpm --filter @payrollph/web exec playwright test`.
+  Also exercised: `status`, `backup` (real pg_dump 18), `restore --yes`, idempotent re-run.
 - **Commit:** `feat(deploy): docker images, aaPanel deploy script, and smoke test`
 
 ---
