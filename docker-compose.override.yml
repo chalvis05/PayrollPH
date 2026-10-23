@@ -1,6 +1,28 @@
-# Local development only: publish Postgres on localhost so `pnpm migrate/seed` can reach it.
-# deploy/deploy.sh uses `-f docker-compose.yml` explicitly, so this file is ignored in production.
+# Local development and tests only. Compose loads this file automatically next to
+# docker-compose.yml; deploy/deploy.sh passes `-f docker-compose.yml` explicitly, so production
+# never starts this container. Production uses the server's own PostgreSQL 18 instead.
 services:
   db:
+    # Must match the production server's PostgreSQL major version (18).
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-payrollph}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-payrollph}
+      TZ: Asia/Manila
+      PGTZ: Asia/Manila
+    command: ['postgres', '-c', 'timezone=Asia/Manila', '-c', 'log_timezone=Asia/Manila']
     ports:
       - '127.0.0.1:${DB_PORT:-5432}:5432'
+    volumes:
+      # PG 18+ images keep data in /var/lib/postgresql/<major>/docker; mount the parent.
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  pgdata:

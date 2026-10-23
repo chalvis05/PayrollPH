@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { DateSchema, MoneySchema, NonNegMoneySchema } from './common';
+import { DateSchema, MoneySchema, PositiveMoneySchema } from './common';
 import { PayslipComputationSchema } from './payslip';
 
 export const PayrollRunKindSchema = z.enum([
@@ -98,24 +98,36 @@ export type FinalPayRequest = z.infer<typeof FinalPayRequestSchema>;
 export const LoanTypeSchema = z.enum(['sss', 'pagibig', 'company', 'cash_advance']);
 export type LoanType = z.infer<typeof LoanTypeSchema>;
 
-export const LoanInputSchema = z
-  .object({
-    employeeId: z.uuid(),
-    type: LoanTypeSchema,
-    reference: z.string().trim().max(60).nullable(),
-    principal: NonNegMoneySchema,
-    /** Amount deducted per deduction period. */
-    amortization: NonNegMoneySchema,
-    /** Deduct on every run, or only on the 1st or 2nd semi-monthly cutoff. */
-    deductOn: z.enum(['every_run', 'first_cutoff', 'second_cutoff']),
-    startDate: DateSchema,
-    notes: z.string().max(300).nullable(),
-  })
-  .refine((l) => Number(l.amortization) > 0, {
-    message: 'Amortization must be more than zero',
-    path: ['amortization'],
-  });
+export const LoanInputSchema = z.object({
+  employeeId: z.uuid(),
+  type: LoanTypeSchema,
+  reference: z.string().trim().max(60).nullable(),
+  principal: PositiveMoneySchema,
+  /** Amount deducted per deduction period. */
+  amortization: PositiveMoneySchema,
+  /** Deduct on every run, or only on the 1st or 2nd semi-monthly cutoff. */
+  deductOn: z.enum(['every_run', 'first_cutoff', 'second_cutoff']),
+  startDate: DateSchema,
+  notes: z.string().max(300).nullable(),
+});
 export type LoanInput = z.infer<typeof LoanInputSchema>;
+
+/** Fields that may change after a loan is released (principal and dates live in the ledger). */
+export const LoanUpdateSchema = LoanInputSchema.pick({
+  reference: true,
+  amortization: true,
+  deductOn: true,
+  notes: true,
+});
+export type LoanUpdate = z.infer<typeof LoanUpdateSchema>;
+
+/** Manual ledger entry outside payroll. Signed: negative = payment, positive = correction. */
+export const LoanAdjustmentSchema = z.object({
+  date: DateSchema,
+  amount: MoneySchema.refine((v) => !/^-?0+(\.0+)?$/.test(v), 'Amount must not be zero'),
+  note: z.string().trim().min(1).max(300),
+});
+export type LoanAdjustment = z.infer<typeof LoanAdjustmentSchema>;
 
 export const LoanSchema = z.object({
   id: z.uuid(),
@@ -144,13 +156,30 @@ export const LoanLedgerEntrySchema = z.object({
 });
 export type LoanLedgerEntry = z.infer<typeof LoanLedgerEntrySchema>;
 
-export const CustomDeductionInputSchema = z.object({
+const CustomDeductionFieldsSchema = z.object({
   employeeId: z.uuid(),
   label: z.string().trim().min(1).max(80),
-  amount: NonNegMoneySchema,
+  amount: PositiveMoneySchema,
   /** One-off deductions apply to the next run only; recurring ones apply until ended. */
   recurrence: z.enum(['once', 'every_run']),
   startDate: DateSchema,
   endDate: DateSchema.nullable(),
 });
+
+export const CustomDeductionInputSchema = CustomDeductionFieldsSchema.extend({
+  /** Switch a deduction off without deleting it. */
+  active: z.boolean().default(true),
+}).refine((d) => d.endDate === null || d.endDate >= d.startDate, {
+  message: 'End date must be on or after the start date',
+  path: ['endDate'],
+});
 export type CustomDeductionInput = z.infer<typeof CustomDeductionInputSchema>;
+
+export const CustomDeductionSchema = CustomDeductionFieldsSchema.extend({
+  id: z.uuid(),
+  active: z.boolean(),
+  /** One-off deductions: the approved run that took it (then it is read-only). */
+  appliedRunId: z.uuid().nullable(),
+  createdAt: z.string(),
+});
+export type CustomDeduction = z.infer<typeof CustomDeductionSchema>;

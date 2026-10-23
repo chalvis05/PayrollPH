@@ -30,6 +30,17 @@ export interface OtherDeductionInput {
   amount: Numeric;
 }
 
+/** Contribution amounts actually deducted in a period (per agency, EE/ER/EC). */
+export interface ContributionAmounts {
+  sssEe: Numeric;
+  sssEr: Numeric;
+  sssEc: Numeric;
+  philhealthEe: Numeric;
+  philhealthEr: Numeric;
+  pagibigEe: Numeric;
+  pagibigEr: Numeric;
+}
+
 export interface PayslipInput {
   employee: {
     payType: PayType;
@@ -48,6 +59,12 @@ export interface PayslipInput {
     sssMonthlyCompensation?: Numeric;
     /** Defaults to the monthly equivalent of the base rate. */
     monthlyBasicSalary?: Numeric;
+    /**
+     * With share 'second_half': what the first cutoff already deducted for this month. The
+     * second cutoff then takes the monthly total minus these amounts (never below zero), so the
+     * two halves always add up to the month's actual contribution even when pay varied.
+     */
+    alreadyDeducted?: ContributionAmounts;
   };
   otherDeductions: readonly OtherDeductionInput[];
   ytd: {
@@ -188,9 +205,12 @@ export function computePayslip(input: PayslipInput): PayslipComputation {
     });
   }
   const share = input.contributions.share;
-  const sssEe = periodShare(monthly.sss.ee, share);
-  const phEe = periodShare(monthly.philhealth.ee, share);
-  const piEe = periodShare(monthly.pagibig.ee, share);
+  const already = share === 'second_half' ? input.contributions.alreadyDeducted : undefined;
+  const portion = (monthlyAmount: Numeric, key: keyof ContributionAmounts): Dec =>
+    already ? max(dec(monthlyAmount).minus(already[key]), ZERO) : periodShare(monthlyAmount, share);
+  const sssEe = portion(monthly.sss.ee, 'sssEe');
+  const phEe = portion(monthly.philhealth.ee, 'philhealthEe');
+  const piEe = portion(monthly.pagibig.ee, 'pagibigEe');
   const statutoryEe = sssEe.plus(phEe).plus(piEe);
 
   // Withholding tax.
@@ -232,10 +252,14 @@ export function computePayslip(input: PayslipInput): PayslipComputation {
       employerShares.push({ code, label, category: 'statutory_er', amount: toMoney(amount) });
     }
   };
-  er('sss_er', 'SSS (employer share)', periodShare(monthly.sss.er, share));
-  er('sss_ec', 'SSS EC (employer)', periodShare(monthly.sss.ec, share));
-  er('philhealth_er', 'PhilHealth (employer share)', periodShare(monthly.philhealth.er, share));
-  er('pagibig_er', 'Pag-IBIG (employer share)', periodShare(monthly.pagibig.er, share));
+  er('sss_er', 'SSS (employer share)', portion(monthly.sss.er, 'sssEr'));
+  er('sss_ec', 'SSS EC (employer)', portion(monthly.sss.ec, 'sssEc'));
+  er(
+    'philhealth_er',
+    'PhilHealth (employer share)',
+    portion(monthly.philhealth.er, 'philhealthEr'),
+  );
+  er('pagibig_er', 'Pag-IBIG (employer share)', portion(monthly.pagibig.er, 'pagibigEr'));
 
   const totalDeductions = sum(employeeDeductions.map((l) => l.amount));
   const netPay = grossPay.minus(totalDeductions);

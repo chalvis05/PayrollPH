@@ -1,8 +1,10 @@
-import type { PayLine } from '../schemas/payslip';
+import type { FinalPayResult, PayLine } from '../schemas/payslip';
 import type { StatutoryRates } from '../schemas/rates';
 import { dec, sum, toMoney, type Numeric } from '../money';
 import { silCashConversion } from './leaves';
 import { splitOtherBenefits, thirteenthAccrual } from './thirteenth';
+
+export type { FinalPayResult };
 
 export interface FinalPayInput {
   /** Net pay of the last (partial) period, computed with computePayslip. */
@@ -17,16 +19,6 @@ export interface FinalPayInput {
   /** From year-end annualization at separation: positive = still to withhold, negative = refund. */
   taxAdjustment: Numeric;
   rates: StatutoryRates;
-}
-
-export interface FinalPayResult {
-  earnings: PayLine[];
-  deductions: PayLine[];
-  thirteenthMonth: { amount: string; exempt: string; taxable: string };
-  lastSalaryNet: string;
-  totalEarnings: string;
-  totalDeductions: string;
-  netFinalPay: string;
 }
 
 /** Separation pay-out: last salary, prorated 13th month, unused SIL, less loans and tax adjustment. */

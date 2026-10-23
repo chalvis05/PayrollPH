@@ -7,13 +7,16 @@ employees, configurable). Status: **AWAITING APPROVAL** — no code written yet.
 
 ## 0. Open questions (need answers before / during the noted phase)
 
-| #   | Question                                                                                                                                                             | Blocks  | My default if you don't care                  |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------------------------------------- |
-| Q1  | Docker is **not installed** on this Windows machine. Phases 2, 3, 5 need Postgres + Docker to verify. Install Docker Desktop (WSL2), or run verification on the VPS? | Phase 2 | You install Docker Desktop; I verify locally. |
-| Q2  | Local Node is v24; spec says Node 20. Images will use `node:20-alpine`; `engines` set to `>=20`. OK?                                                                 | Phase 1 | Yes                                           |
-| Q3  | Folder is not a git repo. I'll `git init` (branch `main`) at the start of Phase 1. Remote?                                                                           | Phase 1 | No remote; local commits only                 |
-| Q4  | Kasambahay threshold: RA 10361 says ₱5,000/month. DOLE has issued regional kasambahay wage orders since then. Seed ₱5,000 with a TODO to verify?                     | Phase 2 | Yes, seed 5,000 + TODO                        |
-| Q5  | Libraries implied by the spec but not named (see §3). OK to add?                                                                                                     | Phase 3 | Yes                                           |
+| #   | Question                                                                                                                                                                                                           | Blocks  | My default if you don't care                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- | --------------------------------------------------- |
+| Q1  | Docker is **not installed** on this Windows machine. Phases 2, 3, 5 need Postgres + Docker to verify. Install Docker Desktop (WSL2), or run verification on the VPS?                                               | Phase 2 | You install Docker Desktop; I verify locally.       |
+| Q2  | Local Node is v24; spec says Node 20. Images will use `node:20-alpine`; `engines` set to `>=20`. OK?                                                                                                               | Phase 1 | Yes                                                 |
+| Q3  | Folder is not a git repo. I'll `git init` (branch `main`) at the start of Phase 1. Remote?                                                                                                                         | Phase 1 | No remote; local commits only                       |
+| Q4  | Kasambahay threshold: RA 10361 says ₱5,000/month. DOLE has issued regional kasambahay wage orders since then. Seed ₱5,000 with a TODO to verify?                                                                   | Phase 2 | Yes, seed 5,000 + TODO                              |
+| Q5  | Libraries implied by the spec but not named (see §3). OK to add?                                                                                                                                                   | Phase 3 | Yes                                                 |
+| Q6  | Host PostgreSQL: should `deploy.sh` create the `payrollph` role + database (needs local superuser `psql`, e.g. aaPanel's `/www/server/pgsql/bin/psql`), or will you create them and put the credentials in `.env`? | Phase 5 | You create them; deploy.sh only checks and migrates |
+| Q7  | How the API container reaches host PG: `network_mode: host` (simple, PG stays on 127.0.0.1) or bridge + `host.docker.internal` (needs PG `listen_addresses` + `pg_hba.conf` entry for the Docker subnet)?          | Phase 5 | Bridge + host-gateway, documented pg_hba line       |
+| Q8  | Restore from the UI runs `pg_restore --clean` against the shared host server. Keep it, scoped to the `payrollph` database only?                                                                                    | Phase 5 | Yes, scoped to that database                        |
 
 ---
 
@@ -236,8 +239,13 @@ session timezone is `Asia/Manila`.
 
 - Multi-stage Dockerfiles (api: node:20-alpine build → runtime with pg client;
   web: build → nginx:alpine serving `dist` and proxying `/api` → `api:3000`).
-- Compose: `db` (postgres:18-alpine, healthcheck, `pgdata` volume at `/var/lib/postgresql`), `api` (`backups` + `uploads` volumes),
-  `web` bound to `127.0.0.1:8080` only.
+- Compose (production): `api` (`backups` + `uploads` volumes) and `web` bound to `127.0.0.1:8080`
+  only. **No `db` container: the API uses the server's own PostgreSQL 18** (user decision,
+  replacing the spec's compose `db` service). The dev-only PG 18 container lives in
+  `docker-compose.override.yml`, which `deploy.sh` never loads (`-f docker-compose.yml`).
+- `deploy.sh` step 3 becomes: check the host PG is reachable (`pg_isready`), then migrate + seed;
+  there is no db healthcheck to wait on. pg_dump/pg_restore v18 in the API image connect to it.
+- Open questions to settle before Phase 5 (see §0 Q6–Q8).
 - `deploy/deploy.sh` per spec (idempotent, `set -euo pipefail`, `--non-interactive`,
   `--domain`, `--admin-email`, subcommands update|backup|restore|logs|down|status).
 - `deploy/README.md`: aaPanel walkthrough (screens as text) + troubleshooting.

@@ -15,8 +15,10 @@ Self-hosted PH payroll for personal use (≤25 active employees). Full plan: `PL
   The engine never calls `Date.now()`.
 - API: Fastify + Drizzle. Every payroll run state change, edit, delete, and reopen writes `audit_log`
   (actor, before JSON, after JSON). Gov IDs are AES-256-GCM encrypted with `ENCRYPTION_KEY`.
-- DB: **PostgreSQL 18** (`postgres:18-alpine`) to match the production server. The spec said 16;
-  the user changed it. pg_dump/pg_restore in the API image must also be v18.
+- DB: **PostgreSQL 18**. Production uses the **server's own PostgreSQL 18** (no db container;
+  user decision). Local dev/tests use the `postgres:18-alpine` container from
+  `docker-compose.override.yml`. pg_dump/pg_restore in the API image must also be v18.
+  On this PC a native Postgres holds 5432, so dev commands run with `DB_PORT=5433`.
 - Web: Vite + React 18 + Tailwind (class dark mode) + TanStack Query + React Router; mobile-first.
 - Don't add features or dependencies outside `PLAN.md` without asking the user.
 
@@ -55,6 +57,6 @@ Self-hosted PH payroll for personal use (≤25 active employees). Full plan: `PL
 
 - [x] Phase 1 — shared engine + schemas (560 tests)
 - [x] Phase 2 — schema, migrations, cap trigger, seed (re-verified on PostgreSQL 18)
-- [ ] Phase 3
+- [x] Phase 3 — API routes, OpenAPI (62 paths), typed client, 105 route tests
 - [ ] Phase 4
 - [ ] Phase 5

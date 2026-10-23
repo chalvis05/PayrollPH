@@ -11,6 +11,12 @@ export const NonNegMoneySchema = MoneySchema.refine(
   'Must not be negative',
 );
 
+/** Strictly positive money (no float conversion: checks the digits). */
+export const PositiveMoneySchema = NonNegMoneySchema.refine(
+  (v) => !/^0+(\.0+)?$/.test(v),
+  'Must be more than zero',
+);
+
 /** Arbitrary-precision decimal string used for rates and multipliers. */
 export const DecimalSchema = z.string().regex(/^-?\d+(\.\d+)?$/, 'Must be a decimal number');
 

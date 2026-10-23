@@ -472,3 +472,63 @@ describe('computePayslip: warnings', () => {
     ]);
   });
 });
+
+describe('computePayslip — second cutoff takes the remainder of the month (alreadyDeducted)', () => {
+  const amt = (lines: readonly PayLine[], code: string) =>
+    lines.find((l) => l.code === code)?.amount;
+  // Actual monthly compensation 8,000 → MSC 8,000: SSS EE 5% = 400, ER 10% = 800, EC 10.
+  // PhilHealth on the 30,000 basic: 1,500 premium → 750 / 750. Pag-IBIG on the 10,000 cap: 200 / 200.
+  const input = (already?: Partial<Record<string, string>>): PayslipInput =>
+    base({
+      contributions: {
+        share: 'second_half',
+        sssMonthlyCompensation: '8000',
+        ...(already
+          ? {
+              alreadyDeducted: {
+                sssEe: '0',
+                sssEr: '0',
+                sssEc: '0',
+                philhealthEe: '0',
+                philhealthEr: '0',
+                pagibigEe: '0',
+                pagibigEr: '0',
+                ...already,
+              },
+            }
+          : {}),
+      },
+    });
+
+  it('deducts monthly total minus what the first cutoff took', () => {
+    const p = run(
+      input({
+        sssEe: '300',
+        sssEr: '600',
+        sssEc: '5',
+        philhealthEe: '375',
+        philhealthEr: '375',
+        pagibigEe: '100',
+        pagibigEr: '100',
+      }),
+    );
+    // 400−300, 800−600, 10−5, 750−375, 200−100
+    expect(amt(p.employeeDeductions, 'sss_ee')).toBe('100.00');
+    expect(amt(p.employerShares, 'sss_er')).toBe('200.00');
+    expect(amt(p.employerShares, 'sss_ec')).toBe('5.00');
+    expect(amt(p.employeeDeductions, 'philhealth_ee')).toBe('375.00');
+    expect(amt(p.employeeDeductions, 'pagibig_ee')).toBe('100.00');
+  });
+
+  it('never goes negative when the first cutoff over-deducted', () => {
+    const p = run(input({ sssEe: '500', sssEr: '1000', sssEc: '30' }));
+    expect(amt(p.employeeDeductions, 'sss_ee')).toBeUndefined();
+    expect(amt(p.employerShares, 'sss_er')).toBeUndefined();
+  });
+
+  it('falls back to the plain second half when nothing is passed', () => {
+    const p = run(input());
+    // 400 − round_down(400/2) = 200
+    expect(amt(p.employeeDeductions, 'sss_ee')).toBe('200.00');
+  });
+});

@@ -1,0 +1,1 @@
+ALTER TABLE "payslips" ADD COLUMN "final_pay" jsonb;

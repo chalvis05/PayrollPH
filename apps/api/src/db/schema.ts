@@ -15,7 +15,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import type { PayslipComputation, StatutoryRates } from '@payrollph/shared';
+import type { FinalPayResult, PayslipComputation, StatutoryRates } from '@payrollph/shared';
 
 /** Money column: NUMERIC(14,2), returned as a string. */
 const money = (name: string) => numeric(name, { precision: 14, scale: 2 });
@@ -390,6 +390,8 @@ export const payslips = pgTable(
       .references(() => employees.id),
     /** Full engine output, frozen at computation time. */
     computation: jsonb('computation').$type<PayslipComputation>().notNull(),
+    /** Final-pay runs only: prorated 13th, SIL conversion, loan payoff and tax adjustment. */
+    finalPay: jsonb('final_pay').$type<FinalPayResult>(),
     // Denormalised totals for reports and YTD.
     gross: money('gross').notNull(),
     taxableIncome: money('taxable_income').notNull(),

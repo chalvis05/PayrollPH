@@ -100,3 +100,14 @@ export const PayslipComputationSchema = z.object({
   warnings: z.array(PayrollWarningSchema),
 });
 export type PayslipComputation = z.infer<typeof PayslipComputationSchema>;
+
+export const FinalPayResultSchema = z.object({
+  earnings: z.array(PayLineSchema),
+  deductions: z.array(PayLineSchema),
+  thirteenthMonth: z.object({ amount: MoneySchema, exempt: MoneySchema, taxable: MoneySchema }),
+  lastSalaryNet: MoneySchema,
+  totalEarnings: MoneySchema,
+  totalDeductions: MoneySchema,
+  netFinalPay: MoneySchema,
+});
+export type FinalPayResult = z.infer<typeof FinalPayResultSchema>;
