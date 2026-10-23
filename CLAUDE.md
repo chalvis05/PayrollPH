@@ -44,7 +44,7 @@ Self-hosted PH payroll for personal use (≤25 active employees). Full plan: `PL
 | Phase | Command                                                                                                                                             |
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1     | `pnpm --filter @payrollph/shared test && pnpm typecheck && pnpm lint`                                                                               |
-| 2     | `docker compose up db -d && pnpm --filter @payrollph/api migrate && pnpm --filter @payrollph/api seed`                                              |
+| 2     | `docker compose up db -d && pnpm --filter @payrollph/api migrate && pnpm --filter @payrollph/api seed -- --sample`                                  |
 | 3     | `pnpm --filter @payrollph/api test`                                                                                                                 |
 | 4     | `pnpm --filter @payrollph/web build && pnpm typecheck && pnpm lint`                                                                                 |
 | 5     | `./deploy/deploy.sh --non-interactive --domain payroll.test --admin-email you@example.com` then `pnpm --filter @payrollph/web exec playwright test` |
@@ -52,7 +52,7 @@ Self-hosted PH payroll for personal use (≤25 active employees). Full plan: `PL
 ## Status
 
 - [x] Phase 1 — shared engine + schemas (560 tests)
-- [ ] Phase 2
+- [x] Phase 2 — schema, migrations, cap trigger, seed (verified on Postgres 16.15)
 - [ ] Phase 3
 - [ ] Phase 4
 - [ ] Phase 5

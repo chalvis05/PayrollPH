@@ -161,7 +161,7 @@ PayrollPH/
 rates_verified flag), `statutory_rates` (version, effective_from, data jsonb validated
 by the shared zod schema, notes), `min_wages` (region, effective_from, daily,
 kasambahay_monthly), `holidays` (date, name, type regular|special_non_working|special_working),
-`employees` (gov IDs as `bytea` ciphertext + IV/tag, employment_type, pay_type,
+`employees` (gov IDs and account numbers as AES-256-GCM text `v1.iv.tag.ct`, employment_type, pay_type,
 base_rate NUMERIC(14,2), daily_factor 313|261|365|393, region, rest_days,
 hire/separation dates, status, bank/GCash), `employee_allowances` (taxable |
 de_minimis + de-minimis type), `dependents`, `employee_documents` (file on the
@@ -169,14 +169,16 @@ uploads volume), `attendance` (per day: hours by category, undertime, tardy
 minutes, absent, leave type), `leave_balances`, `payroll_runs` (period, kind
 semi_monthly_1|semi_monthly_2|monthly|final_pay|thirteenth, status
 draft|review|approved|paid, rates_version_id, reopen_reason),
-`payslips` + `payslip_lines` (code, category, amount, taxable flag),
-`loans` (sss|pagibig|company|cash_advance) + `loan_ledger`, `custom_deductions`,
-`thirteenth_accruals`, `backups`.
+`payslips` (frozen engine output as jsonb + denormalised totals for reports/YTD),
+`loans` (sss|pagibig|company|cash_advance) + `loan_ledger`, `custom_deductions`.
+13th-month accruals are read from `payslips.thirteenth_accrual`; backups are listed from
+the backups volume (no tables).
 
 **Employee cap:** an app-layer check plus a Postgres `BEFORE INSERT OR UPDATE`
 trigger on `employees` that counts `status='active'` rows and compares them
-to `settings.employee_cap`. It raises `P0001 'EMPLOYEE_CAP_EXCEEDED'`, which the
-API maps to a clear 409 error. All money columns are `NUMERIC(14,2)`, and the DB
+to `settings.employee_cap` (advisory-locked so concurrent inserts can't both pass). It
+raises `P0001 'EMPLOYEE_CAP_EXCEEDED'`, which the API maps to a clear 409 error. A second
+trigger stops the cap being lowered below the current active count. All money columns are `NUMERIC(14,2)`, and the DB
 session timezone is `Asia/Manila`.
 
 ---
@@ -200,7 +202,10 @@ session timezone is `Asia/Manila`.
   special; proclamation-dependent dates like Eid flagged TODO), and 22 employees
   covering every pay type × employment type, including at least 2 kasambahay
   (one below threshold, one above) and a mix of 313/261/365/393 factors.
-- **Verify:** `docker compose up db -d && pnpm --filter @payrollph/api migrate && pnpm --filter @payrollph/api seed`
+- `seed` always loads reference data (settings, rates v1, holidays, min wages) and is
+  idempotent. The 22 sample employees load only with `--sample`, so `deploy.sh` never puts
+  fake staff on the production server.
+- **Verify:** `docker compose up db -d && pnpm --filter @payrollph/api migrate && pnpm --filter @payrollph/api seed -- --sample`
 - **Commit:** `feat(api): database schema, migrations, and seed data`
 
 ### Phase 3 — API routes + OpenAPI + typed client

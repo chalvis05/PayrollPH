@@ -1,0 +1,6 @@
+# Local development only: publish Postgres on localhost so `pnpm migrate/seed` can reach it.
+# deploy/deploy.sh uses `-f docker-compose.yml` explicitly, so this file is ignored in production.
+services:
+  db:
+    ports:
+      - '127.0.0.1:${DB_PORT:-5432}:5432'
