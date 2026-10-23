@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@payrollph/api", "dev"],
+      "env": { "DB_PORT": "5433" },
+      "port": 3000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@payrollph/web", "dev", "--port", "5173", "--strictPort"],
+      "port": 5173
+    }
+  ]
+}

@@ -52,8 +52,10 @@ export const AuditEntrySchema = z.object({
 export type AuditEntry = z.infer<typeof AuditEntrySchema>;
 
 export const BackupSchema = z.object({
-  fileName: z.string(),
-  sizeBytes: z.number().int(),
+  /** File name in the backups volume, e.g. payrollph-20261024-020000.dump. */
+  name: z.string(),
+  /** Size in bytes. */
+  size: z.number().int(),
   createdAt: z.string(),
 });
 export type Backup = z.infer<typeof BackupSchema>;

@@ -13,7 +13,8 @@ import {
   ownerClient,
   resetDb,
   viewerClient,
-  type TestClient,
+  OWNER,
+  TestClient,
   type TestContext,
 } from '../../test/helpers';
 
@@ -236,6 +237,14 @@ describe('backup routes', () => {
       confirm: 'RESTORE',
     });
     expect(restored.status).toBe(200);
+    // Restoring signs everyone out: sessions from the dump must not come back to life.
+    expect((await owner.get('/api/auth/me')).status).toBe(401);
+    owner = new TestClient(ctx.app);
+    const relogin = await owner.post('/api/auth/login', {
+      email: OWNER.email,
+      password: OWNER.password,
+    });
+    expect(relogin.status).toBe(200);
     const list = await owner.get<{ firstName?: string; fullName: string }[]>('/api/employees');
     const names = list.body.map((e) => e.fullName);
     expect(names.some((n) => n.startsWith('Kept'))).toBe(true);

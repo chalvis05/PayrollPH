@@ -58,5 +58,5 @@ Self-hosted PH payroll for personal use (≤25 active employees). Full plan: `PL
 - [x] Phase 1 — shared engine + schemas (560 tests)
 - [x] Phase 2 — schema, migrations, cap trigger, seed (re-verified on PostgreSQL 18)
 - [x] Phase 3 — API routes, OpenAPI (62 paths), typed client, 105 route tests
-- [ ] Phase 4
+- [x] Phase 4 — web UI (all screens), browser-reviewed against the dev API
 - [ ] Phase 5

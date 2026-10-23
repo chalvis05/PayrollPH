@@ -4,10 +4,11 @@ import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pipeline } from 'node:stream/promises';
+import { BackupSchema } from '@payrollph/shared';
 import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { users } from '../db/schema';
+import { sessions, users } from '../db/schema';
 import { writeAudit } from '../lib/audit';
 import {
   BACKUP_NAME_RE,
@@ -19,13 +20,8 @@ import {
   restoreBackup,
 } from '../lib/backup';
 import { badRequest, errorResponses, notFound, OkSchema } from '../lib/http';
+import { SESSION_COOKIE } from '../lib/session';
 import { ownerOnly, requireOwner } from '../plugins/auth';
-
-const BackupSchema = z.object({
-  name: z.string(),
-  size: z.number().int(),
-  createdAt: z.string(),
-});
 
 const FileParamsSchema = z.object({
   file: z.string().regex(BACKUP_NAME_RE, 'Not a backup file name'),
@@ -136,7 +132,7 @@ export const backupRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: z.object({ ok: z.literal(true), source: z.string() }), ...errorResponses },
       },
     },
-    async (request) => {
+    async (request, reply) => {
       const me = requireOwner(request);
       let file: string;
       let source: string;
@@ -186,6 +182,11 @@ export const backupRoutes: FastifyPluginAsyncZod = async (app) => {
       } finally {
         if (tempDir) await rm(tempDir, { recursive: true, force: true });
       }
+
+      // The dump carries the `sessions` table, so a restore would revive sessions that were
+      // signed out or revoked since the backup. Sign everyone out instead.
+      await app.db.delete(sessions);
+      reply.clearCookie(SESSION_COOKIE, { path: '/' });
 
       // Audit AFTER the restore so the entry survives. The acting user may not exist in the
       // restored data; then record them by email instead of a dangling foreign key.
