@@ -6,10 +6,11 @@ import {
   RATES_V1_EFFECTIVE_FROM,
   StatutoryRatesSchema,
 } from '@payrollph/shared';
-import { env } from '../env';
+import { databaseUrl, env } from '../env';
 import { createFieldCipher } from '../lib/crypto';
 import { isMain } from '../lib/isMain';
 import { createDb, type Db } from './client';
+import { describeDbError, describeTarget } from './dbErrors';
 import {
   dependents,
   employeeAllowances,
@@ -140,7 +141,10 @@ async function main(): Promise<void> {
 
 if (isMain(import.meta.url)) {
   main().catch((err: unknown) => {
-    console.error('Seed failed:', err);
+    const { summary, hint } = describeDbError(err, describeTarget(databaseUrl()));
+    console.error(`Seed failed: ${summary}`);
+    if (hint) console.error(`Fix: ${hint}`);
+    if (process.env.DEBUG) console.error(err);
     process.exit(1);
   });
 }

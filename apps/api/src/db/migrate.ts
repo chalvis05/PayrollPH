@@ -1,7 +1,9 @@
 import { resolve } from 'node:path';
 import { migrate } from 'drizzle-orm/postgres-js/migrator';
+import { databaseUrl } from '../env';
 import { isMain } from '../lib/isMain';
 import { createDb } from './client';
+import { describeDbError, describeTarget } from './dbErrors';
 
 // In the production image the bundle lives in dist/, so the folder is given by MIGRATIONS_DIR.
 const migrationsFolder =
@@ -20,7 +22,10 @@ if (isMain(import.meta.url)) {
   runMigrations()
     .then(() => console.log('Migrations applied.'))
     .catch((err: unknown) => {
-      console.error('Migration failed:', err);
+      const { summary, hint } = describeDbError(err, describeTarget(databaseUrl()));
+      console.error(`Migration failed: ${summary}`);
+      if (hint) console.error(`Fix: ${hint}`);
+      if (process.env.DEBUG) console.error(err);
       process.exit(1);
     });
 }

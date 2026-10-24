@@ -189,6 +189,11 @@ ${BOLD}PayrollPH could not use the server's PostgreSQL 18.${RESET} Do this once,
        CREATE ROLE ${user:-payrollph} LOGIN PASSWORD '<POSTGRES_PASSWORD from .env>';
        CREATE DATABASE ${db:-payrollph} OWNER ${user:-payrollph};
      (aaPanel's PostgreSQL client is usually /www/server/pgsql/bin/psql.)
+     If the database already exists (e.g. created in aaPanel's Databases page), it is owned
+     by postgres and migrations fail with "permission denied". Give it to the app's role:
+       ALTER DATABASE ${db:-payrollph} OWNER TO ${user:-payrollph};
+       \\c ${db:-payrollph}
+       ALTER SCHEMA public OWNER TO ${user:-payrollph};
 
   2. Let the Docker bridge network connect. In postgresql.conf:
        listen_addresses = 'localhost,172.17.0.1'

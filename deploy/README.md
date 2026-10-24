@@ -44,6 +44,16 @@ CREATE DATABASE payrollph OWNER payrollph;
 works.) Keep the password: you give it to the deploy script in step 3. Or skip choosing one and
 let the script generate it, then run the two SQL lines it prints.
 
+> **Created the database in aaPanel's _Databases_ page instead?** Then it is owned by
+> `postgres`, and on PostgreSQL 15+ the app's role may not create anything in it — migrations
+> fail with `permission denied for database payrollph`. Hand it over:
+>
+> ```sql
+> ALTER DATABASE payrollph OWNER TO payrollph;
+> \c payrollph
+> ALTER SCHEMA public OWNER TO payrollph;
+> ```
+
 ### Let the containers connect
 
 Containers reach the host at the Docker bridge gateway (normally `172.17.0.1`). PostgreSQL must
@@ -194,7 +204,11 @@ If Docker uses a different bridge subnet, `ip -4 addr show docker0` shows the ga
 means `POSTGRES_PASSWORD` in `.env` differs from the role's password
 (`ALTER ROLE payrollph PASSWORD '...'` to match). `no pg_hba.conf entry` means the `host` line
 from step 1 is missing or below a `reject` line. `database "payrollph" does not exist` means
-step 1 was skipped.
+step 1 was skipped. `permission denied for database payrollph` (`42501`) means the role does not
+own the database — usually because it was created in aaPanel's Databases page; run the
+`ALTER DATABASE … OWNER TO` / `ALTER SCHEMA public OWNER TO` lines from step 1. The error line
+always names the real cause and the `user@host:port/db` it tried (older versions only showed
+`Failed query: CREATE SCHEMA IF NOT EXISTS "drizzle"`; set `DEBUG=1` for the full stack).
 
 **Permission denied on volumes / backups fail to write** — the API runs as the unprivileged
 `node` user (uid 1000). Volumes created by Docker get the right owner automatically. If you
