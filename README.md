@@ -50,6 +50,9 @@ pnpm typecheck && pnpm lint
 pnpm --filter @payrollph/api gen:client   # regenerate OpenAPI + web client types after API changes
 ```
 
+CI (`.github/workflows/ci.yml`) runs all of the above on every push and pull request, against
+PostgreSQL 18, then deploys with `deploy.sh --non-interactive` and runs the smoke test.
+
 Smoke test against a fresh deployment:
 
 ```bash
