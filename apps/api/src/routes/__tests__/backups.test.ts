@@ -228,6 +228,8 @@ describe('backup routes', () => {
     expect(created.body.size).toBeGreaterThan(0);
     // Retention (default 30 days) pruned the old fake dump.
     expect(readdirSync(dir)).not.toContain(old);
+    const beforeRestore = await owner.get<{ action: string }[]>('/api/audit?entity=backup');
+    expect(beforeRestore.body.map((a) => a.action)).toContain('backup.create');
 
     const after = await owner.post('/api/employees', employeeInput({ firstName: 'Discarded' }));
     expect(after.status).toBe(201);
@@ -250,9 +252,13 @@ describe('backup routes', () => {
     expect(names.some((n) => n.startsWith('Kept'))).toBe(true);
     expect(names.some((n) => n.startsWith('Discarded'))).toBe(false);
 
-    const audit = await owner.get<{ action: string }[]>('/api/audit?entity=backup');
-    const actions = audit.body.map((a) => a.action);
-    expect(actions).toContain('backup.create');
-    expect(actions).toContain('backup.restore');
+    // The audit log lives in the database, so a full restore rewinds it to the moment of the
+    // dump: the `backup.create` entry (written after pg_dump finished) is not in it. What
+    // remains is the `backup.restore` entry, written after the restore, naming its source.
+    const audit = await owner.get<{ action: string; entityId: string | null }[]>(
+      '/api/audit?entity=backup',
+    );
+    expect(audit.body.map((a) => a.action)).toEqual(['backup.restore']);
+    expect(audit.body[0]?.entityId).toBe(created.body.name);
   });
 });
