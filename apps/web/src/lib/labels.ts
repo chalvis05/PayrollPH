@@ -39,6 +39,7 @@ export const runKindLabels: Record<PayrollRunKind, string> = {
   monthly: 'Monthly',
   thirteenth_month: '13th month',
   final_pay: 'Final pay',
+  twice_weekly: 'Twice-weekly payout',
 };
 
 export const runStatusLabels: Record<PayrollRunStatus, string> = {
@@ -101,6 +102,27 @@ export const ledgerKindLabels: Record<'disbursement' | 'payment' | 'adjustment',
 export const recurrenceLabels: Record<'once' | 'every_run', string> = {
   every_run: 'Every payroll run',
   once: 'Once (next run only)',
+};
+
+export const payScheduleLabels: Record<'standard' | 'twice_weekly', string> = {
+  standard: 'Standard (per Settings)',
+  twice_weekly: 'Twice weekly (Wed & Sat)',
+};
+
+export const roleLabels: Record<'owner' | 'viewer' | 'encoder', string> = {
+  owner: 'Owner',
+  viewer: 'Viewer (read-only)',
+  encoder: 'Encoder (changes need approval)',
+};
+
+export const requestStatusLabels: Record<
+  'pending' | 'approved' | 'rejected' | 'cancelled',
+  string
+> = {
+  pending: 'Waiting for approval',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  cancelled: 'Withdrawn',
 };
 
 export const weekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;

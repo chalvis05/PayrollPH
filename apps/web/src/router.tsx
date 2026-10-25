@@ -4,6 +4,7 @@ import { AppShell } from './components/layout/AppShell';
 import { RequireAuth } from './lib/auth';
 import type { RouteHandle } from './components/layout/AppShell';
 import { AccountPage } from './pages/Account';
+import { ApprovalsPage } from './pages/Approvals';
 import { AttendancePage } from './pages/Attendance';
 import { AuditPage } from './pages/Audit';
 import { AuthLayout } from './pages/AuthLayout';
@@ -48,6 +49,7 @@ export const routes: RouteObject[] = [
       { path: 'employees', element: <EmployeesPage />, handle: h('Employees') },
       { path: 'employees/new', element: <EmployeeFormPage />, handle: h('New employee') },
       { path: 'employees/:id', element: <EmployeeFormPage />, handle: h('Edit employee') },
+      { path: 'approvals', element: <ApprovalsPage />, handle: h('Approvals') },
       { path: 'attendance', element: <AttendancePage />, handle: h('Attendance') },
       { path: 'holidays', element: <HolidaysPage />, handle: h('Holidays') },
       { path: 'payroll', element: <PayrollRunsPage />, handle: h('Payroll runs') },

@@ -8,6 +8,7 @@ import {
   splitOtherBenefits,
   thirteenthPayout,
   toMoney,
+  weekdayOf,
   type AllowanceInput,
   type AttendanceSummary,
   type ContributionShare,
@@ -48,6 +49,39 @@ type AttendanceRow = typeof attendance.$inferSelect;
 
 export const REGULAR_KINDS = ['semi_monthly_1', 'semi_monthly_2', 'monthly'] as const;
 export type RegularKind = (typeof REGULAR_KINDS)[number];
+/** Runs that pay days worked (so posting them locks attendance): regular + twice-weekly. */
+export const PAYDAY_KINDS = [...REGULAR_KINDS, 'twice_weekly'] as const;
+
+/** Where a payout falls in its month, for loans set to deduct on the 1st or 2nd cutoff only. */
+export interface CutoffSlot {
+  first: boolean;
+  last: boolean;
+}
+
+export function cutoffSlotFor(kind: RegularKind): CutoffSlot {
+  return { first: kind !== 'semi_monthly_2', last: kind !== 'semi_monthly_1' };
+}
+
+/** Twice-weekly payouts: Wednesday pays Sunday–Wednesday, Saturday pays Thursday–Saturday. */
+export function twiceWeeklyPeriod(payDate: string): { start: string; end: string } {
+  const wd = weekdayOf(payDate);
+  if (wd === 3) return { start: addDays(payDate, -3), end: payDate };
+  if (wd === 6) return { start: addDays(payDate, -2), end: payDate };
+  throw badRequest('BAD_PAY_DATE', 'Twice-weekly payouts are on a Wednesday or a Saturday.');
+}
+
+/**
+ * First/last twice-weekly payout of its month: the previous/next payout (Wed to Sat is 3 days,
+ * Sat to Wed is 4) falls in another month. The last one deducts the month's contributions.
+ */
+export function twiceWeeklySlot(payDate: string): CutoffSlot {
+  const isWed = weekdayOf(payDate) === 3;
+  const month = payDate.slice(0, 7);
+  return {
+    first: addDays(payDate, isWed ? -4 : -3).slice(0, 7) !== month,
+    last: addDays(payDate, isWed ? 3 : 4).slice(0, 7) !== month,
+  };
+}
 const POSTED = ['approved', 'paid'] as const;
 
 const ZERO = '0.00';
@@ -263,18 +297,18 @@ const LOAN_LABELS: Record<(typeof loans.$inferSelect)['type'], string> = {
 
 function loanAppliesTo(
   deductOn: (typeof loans.$inferSelect)['deductOn'],
-  kind: RegularKind,
+  slot: CutoffSlot,
 ): boolean {
   if (deductOn === 'every_run') return true;
-  if (deductOn === 'first_cutoff') return kind !== 'semi_monthly_2';
-  return kind !== 'semi_monthly_1';
+  if (deductOn === 'first_cutoff') return slot.first;
+  return slot.last;
 }
 
 async function loanDeductionsFor(
   db: DbOrTx,
   employeeId: string,
   periodEnd: string,
-  mode: { kind: RegularKind } | { payoff: true },
+  mode: { slot: CutoffSlot } | { payoff: true },
 ): Promise<OtherDeductionInput[]> {
   const rows = await db
     .select()
@@ -294,7 +328,7 @@ async function loanDeductionsFor(
   for (const l of rows) {
     const balance = dec(balances.get(l.id) ?? ZERO);
     if (balance.lte(0)) continue;
-    if ('kind' in mode && !loanAppliesTo(l.deductOn, mode.kind)) continue;
+    if ('slot' in mode && !loanAppliesTo(l.deductOn, mode.slot)) continue;
     const amount = 'payoff' in mode ? balance : DecMin(balance, l.amortization);
     out.push({
       code: `loan:${l.id}`,
@@ -434,12 +468,22 @@ async function updateRunTotals(db: DbOrTx, runId: string): Promise<void> {
 
 // ---------------------------------------------------------------- regular runs
 
+/** How one run pays: its tax frequency, contribution share and position in the month. */
+interface SlipPlan {
+  frequency: PayFrequency;
+  share: ContributionShare;
+  slot: CutoffSlot;
+  /** Twice-weekly: gross of this employee's other payouts this month (SSS on actual pay). */
+  otherGrossThisMonth?: string;
+}
+
 async function computeRegularSlip(
   db: DbOrTx,
-  run: RunRow & { kind: RegularKind },
+  run: RunRow,
   e: EmployeeRow,
   rates: StatutoryRates,
   hols: Map<string, HolidayType>,
+  plan: SlipPlan,
 ): Promise<{ computation: PayslipComputation; share: ContributionShare }> {
   const period = { start: run.periodStart, end: run.periodEnd };
   const rows = await db
@@ -464,12 +508,12 @@ async function computeRegularSlip(
     .from(employeeAllowances)
     .where(eq(employeeAllowances.employeeId, e.id));
   const otherDeductions = [
-    ...(await loanDeductionsFor(db, e.id, period.end, { kind: run.kind })),
+    ...(await loanDeductionsFor(db, e.id, period.end, { slot: plan.slot })),
     ...(await customDeductionsFor(db, e.id, run.id, period)),
   ];
   const ytd = (await postedYtd(db, [e.id], yearOf(period.end), run.id)).get(e.id) ?? emptyYtd;
   const minimumWage = await minimumWageFor(db, e.region, period.end);
-  const share = contributionShareFor(run.kind, run.contributionSchedule);
+  const share = plan.share;
 
   const base = {
     employee: {
@@ -479,7 +523,7 @@ async function computeRegularSlip(
       dailyFactor: e.dailyFactor as DailyFactor,
       govIds: govIds(e),
     },
-    frequency: frequencyFor(run.kind),
+    frequency: plan.frequency,
     attendance: summary,
     allowances: allowanceInputs(allowances),
     otherDeductions,
@@ -531,9 +575,9 @@ async function computeRegularSlip(
     (e.payType === 'daily' || e.payType === 'hourly') &&
     (share === 'full' || share === 'second_half')
   ) {
-    const monthGross = first
-      ? dec(computation.grossPay).plus(first.gross)
-      : dec(computation.grossPay);
+    const monthGross = (
+      first ? dec(computation.grossPay).plus(first.gross) : dec(computation.grossPay)
+    ).plus(plan.otherGrossThisMonth ?? '0');
     computation = computePayslip({
       ...base,
       contributions: { share, sssMonthlyCompensation: monthGross.toFixed(2), ...alreadyDeducted },
@@ -559,11 +603,22 @@ export async function computeRegularRun(db: DbOrTx, runId: string): Promise<void
   const staff = await db
     .select()
     .from(employees)
-    .where(and(eq(employees.status, 'active'), lte(employees.hireDate, run.periodEnd)));
+    .where(
+      and(
+        eq(employees.status, 'active'),
+        eq(employees.paySchedule, 'standard'),
+        lte(employees.hireDate, run.periodEnd),
+      ),
+    );
+  const plan: SlipPlan = {
+    frequency: frequencyFor(run.kind),
+    share: contributionShareFor(run.kind, run.contributionSchedule),
+    slot: cutoffSlotFor(run.kind),
+  };
 
   await db.delete(payslips).where(eq(payslips.payrollRunId, run.id));
   for (const e of staff) {
-    const { computation, share } = await computeRegularSlip(db, run, e, rates, hols);
+    const { computation, share } = await computeRegularSlip(db, run, e, rates, hols, plan);
     await db.insert(payslips).values(payslipValues(run.id, e.id, computation, share));
   }
   await updateRunTotals(db, run.id);
@@ -571,6 +626,107 @@ export async function computeRegularRun(db: DbOrTx, runId: string): Promise<void
 
 const isRegular = (run: RunRow): run is RunRow & { kind: RegularKind } =>
   (REGULAR_KINDS as readonly string[]).includes(run.kind);
+
+/** (Re)compute a draft twice-weekly payout for every active twice-weekly employee. */
+export async function computeTwiceWeeklyRun(db: DbOrTx, runId: string): Promise<void> {
+  const [run] = await db.select().from(payrollRuns).where(eq(payrollRuns.id, runId)).limit(1);
+  if (!run || run.kind !== 'twice_weekly') throw notFound('Twice-weekly payout');
+  if (run.status !== 'draft' && run.status !== 'review') {
+    throw conflict(
+      'RUN_LOCKED',
+      'Approved or paid runs cannot be recomputed. Reopen the run first.',
+    );
+  }
+  const { data: rates } = await ratesById(db, run.ratesVersionId);
+  const hols = await holidaysMap(db, addDays(run.periodStart, -10), run.periodEnd);
+  const staff = await db
+    .select()
+    .from(employees)
+    .where(
+      and(
+        eq(employees.status, 'active'),
+        eq(employees.paySchedule, 'twice_weekly'),
+        lte(employees.hireDate, run.periodEnd),
+      ),
+    );
+  const slot = twiceWeeklySlot(run.payDate);
+  // The month's contributions come off the last payout of the month, on the month's actual pay.
+  const share: ContributionShare = slot.last ? 'full' : 'none';
+  const month = run.periodEnd.slice(0, 7);
+
+  await db.delete(payslips).where(eq(payslips.payrollRunId, run.id));
+  for (const e of staff) {
+    const [others] = slot.last
+      ? await db
+          .select({ gross: sql<string>`coalesce(sum(${payslips.gross}), 0)::text` })
+          .from(payslips)
+          .innerJoin(payrollRuns, eq(payrollRuns.id, payslips.payrollRunId))
+          .where(
+            and(
+              eq(payslips.employeeId, e.id),
+              eq(payrollRuns.kind, 'twice_weekly'),
+              ne(payrollRuns.id, run.id),
+              sql`to_char(${payrollRuns.periodEnd}, 'YYYY-MM') = ${month}`,
+            ),
+          )
+      : [];
+    const { computation } = await computeRegularSlip(db, run, e, rates, hols, {
+      frequency: 'twice_weekly',
+      share,
+      slot,
+      ...(others ? { otherGrossThisMonth: others.gross } : {}),
+    });
+    await db.insert(payslips).values(payslipValues(run.id, e.id, computation, share));
+  }
+  await updateRunTotals(db, run.id);
+}
+
+export async function createTwiceWeeklyRun(
+  db: DbOrTx,
+  input: { payDate: string },
+  actorId: string,
+): Promise<string> {
+  const period = twiceWeeklyPeriod(input.payDate);
+  const rates = await ratesForDate(db, period.end);
+  const [existing] = await db
+    .select({ id: payrollRuns.id })
+    .from(payrollRuns)
+    .where(and(eq(payrollRuns.kind, 'twice_weekly'), eq(payrollRuns.periodStart, period.start)))
+    .limit(1);
+  if (existing) {
+    throw conflict('RUN_EXISTS', 'A payout for this pay date already exists.', {
+      id: existing.id,
+    });
+  }
+  const [cfg] = await db.select().from(settings).limit(1);
+  const [run] = await db
+    .insert(payrollRuns)
+    .values({
+      kind: 'twice_weekly',
+      periodStart: period.start,
+      periodEnd: period.end,
+      payDate: input.payDate,
+      ratesVersionId: rates.id,
+      contributionSchedule: cfg?.contributionSchedule ?? 'second_cutoff',
+      createdBy: actorId,
+    })
+    .returning();
+  if (!run) throw new Error('Run insert returned no row');
+  await computeTwiceWeeklyRun(db, run.id);
+  await writeAudit(db, {
+    actorId,
+    action: 'payroll_run.create',
+    entity: 'payroll_run',
+    entityId: run.id,
+    after: {
+      kind: run.kind,
+      periodStart: run.periodStart,
+      periodEnd: run.periodEnd,
+      ratesVersion: rates.version,
+    },
+  });
+  return run.id;
+}
 
 export async function createRegularRun(
   db: DbOrTx,
@@ -802,7 +958,7 @@ export async function createFinalPayRun(
       and(
         eq(payslips.employeeId, e.id),
         inArray(payrollRuns.status, [...POSTED]),
-        inArray(payrollRuns.kind, [...REGULAR_KINDS]),
+        inArray(payrollRuns.kind, [...PAYDAY_KINDS]),
       ),
     );
   const startCandidate = lastPosted?.end ? addDays(lastPosted.end, 1) : e.hireDate;
@@ -858,7 +1014,12 @@ async function computeFinalPayRun(
   if (!e) throw notFound('Employee');
   const { data: rates } = await ratesById(db, run.ratesVersionId);
   const [cfg] = await db.select().from(settings).limit(1);
-  const frequency: PayFrequency = cfg?.payFrequency === 'monthly' ? 'monthly' : 'semi_monthly';
+  const frequency: PayFrequency =
+    e.paySchedule === 'twice_weekly'
+      ? 'twice_weekly'
+      : cfg?.payFrequency === 'monthly'
+        ? 'monthly'
+        : 'semi_monthly';
   const basis = rateBasis(e.payType, e.baseRate, e.dailyFactor as DailyFactor, rates);
   const year = yearOf(run.periodEnd);
   const hasLastSalary = opts.lastSalaryStart <= run.periodEnd;
@@ -910,8 +1071,25 @@ async function computeFinalPayRun(
       holidaysByDate: hols,
     });
     if (salaried) {
+      // Days worked on a holiday are paid in full by the premium line (the daily conversion has
+      // no salary coverage), so they must not also count as a paid working day here.
+      const premiumWorked = new Set(
+        rows
+          .filter(
+            (r) =>
+              r.date >= period.start &&
+              r.date <= period.end &&
+              Number(r.regularHours) > 0 &&
+              (r.dayTypeOverride ?? dayTypeFor(r.date, e.restDays, hols.get(r.date))) !==
+                'ordinary',
+          )
+          .map((r) => r.date),
+      );
       const workdays = eachDate(period.start, period.end).filter(
-        (d) => !e.restDays.includes(isoWeekday(d)) && hols.get(d) !== 'special_non_working',
+        (d) =>
+          !e.restDays.includes(isoWeekday(d)) &&
+          hols.get(d) !== 'special_non_working' &&
+          !premiumWorked.has(d),
       ).length;
       summary = {
         ...summary,
@@ -1064,6 +1242,7 @@ export async function transitionRun(
   if (action === 'submit') {
     // Refresh numbers from the latest attendance/loans before review.
     if (isRegular(run)) await computeRegularRun(db, run.id);
+    else if (run.kind === 'twice_weekly') await computeTwiceWeeklyRun(db, run.id);
     else if (run.kind === 'thirteenth_month') await computeThirteenthRun(db, run.id);
   }
   if (action === 'approve') await postRun(db, run);
@@ -1179,6 +1358,7 @@ export async function recomputeRun(db: DbOrTx, runId: string): Promise<void> {
   if (!run) throw notFound('Payroll run');
   if (run.status !== 'draft') throw conflict('RUN_NOT_DRAFT', 'Only draft runs can be recomputed.');
   if (isRegular(run)) return computeRegularRun(db, run.id);
+  if (run.kind === 'twice_weekly') return computeTwiceWeeklyRun(db, run.id);
   if (run.kind === 'thirteenth_month') return computeThirteenthRun(db, run.id);
   throw new HttpError(
     409,
@@ -1197,7 +1377,7 @@ export async function isAttendanceLocked(db: DbOrTx, date: string): Promise<bool
     .from(payrollRuns)
     .where(
       and(
-        inArray(payrollRuns.kind, [...REGULAR_KINDS]),
+        inArray(payrollRuns.kind, [...PAYDAY_KINDS]),
         inArray(payrollRuns.status, [...POSTED]),
         lte(payrollRuns.periodStart, date),
         gte(payrollRuns.periodEnd, date),

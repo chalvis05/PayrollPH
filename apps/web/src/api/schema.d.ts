@@ -84,7 +84,7 @@ export interface paths {
                 name: string;
                 email: string;
                 /** @enum {string} */
-                role: 'owner' | 'viewer';
+                role: 'owner' | 'viewer' | 'encoder';
                 totpEnabled: boolean;
                 createdAt: string;
               };
@@ -253,7 +253,7 @@ export interface paths {
                 name: string;
                 email: string;
                 /** @enum {string} */
-                role: 'owner' | 'viewer';
+                role: 'owner' | 'viewer' | 'encoder';
                 totpEnabled: boolean;
                 createdAt: string;
               };
@@ -412,7 +412,7 @@ export interface paths {
                 name: string;
                 email: string;
                 /** @enum {string} */
-                role: 'owner' | 'viewer';
+                role: 'owner' | 'viewer' | 'encoder';
                 totpEnabled: boolean;
                 createdAt: string;
               };
@@ -980,6 +980,961 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/employee-requests/': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Employee change requests (owner: all; encoder: their own), newest first */
+    get: {
+      parameters: {
+        query?: {
+          status?: 'pending' | 'approved' | 'rejected' | 'cancelled';
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind: 'create' | 'update';
+              employeeId: string | null;
+              /** @enum {string} */
+              status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+              summary: {
+                employeeNo: string;
+                fullName: string;
+              };
+              requestedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              requestedAt: string;
+              decidedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              decidedAt: string | null;
+              decisionNote: string | null;
+              resultEmployeeId: string | null;
+            }[];
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Submit a new employee or an edit for owner approval */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            /** @default null */
+            employeeId?: string | null;
+            data: {
+              employeeNo: string;
+              firstName: string;
+              middleName: string | null;
+              lastName: string;
+              birthDate: string | null;
+              sex: ('female' | 'male') | null;
+              civilStatus: ('single' | 'married' | 'widowed' | 'separated') | null;
+              isSoloParent: boolean;
+              address: string | null;
+              phone: string | null;
+              email: string | null;
+              position: string | null;
+              region: string;
+              sssNo: string | null;
+              philhealthNo: string | null;
+              pagibigNo: string | null;
+              tin: string | null;
+              /** @enum {string} */
+              employmentType: 'regular' | 'probationary' | 'contractual' | 'kasambahay';
+              /** @enum {string} */
+              payType: 'monthly' | 'semi_monthly' | 'daily' | 'hourly';
+              /**
+               * @default standard
+               * @enum {string}
+               */
+              paySchedule?: 'standard' | 'twice_weekly';
+              baseRate: string;
+              dailyFactor: 313 | 261 | 365 | 393;
+              restDays: number[];
+              hireDate: string;
+              /** @enum {string} */
+              status: 'active' | 'inactive' | 'separated';
+              separationDate: string | null;
+              allowances: {
+                name: string;
+                amount: string;
+                /** @enum {string} */
+                kind: 'taxable' | 'de_minimis';
+                deMinimisType: string | null;
+              }[];
+              dependents: {
+                name: string;
+                relationship: string;
+                birthDate: string | null;
+              }[];
+              payout: {
+                /** @enum {string} */
+                method: 'bank' | 'gcash' | 'cash';
+                bankName: string | null;
+                accountName: string | null;
+                accountNumber: string | null;
+              };
+            };
+          };
+        };
+      };
+      responses: {
+        /** @description Default Response */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind: 'create' | 'update';
+              employeeId: string | null;
+              /** @enum {string} */
+              status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+              summary: {
+                employeeNo: string;
+                fullName: string;
+              };
+              requestedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              requestedAt: string;
+              decidedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              decidedAt: string | null;
+              decisionNote: string | null;
+              resultEmployeeId: string | null;
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/employee-requests/{id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One request with the proposed record and a field-by-field diff */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind: 'create' | 'update';
+              employeeId: string | null;
+              /** @enum {string} */
+              status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+              summary: {
+                employeeNo: string;
+                fullName: string;
+              };
+              requestedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              requestedAt: string;
+              decidedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              decidedAt: string | null;
+              decisionNote: string | null;
+              resultEmployeeId: string | null;
+              proposed: {
+                employeeNo: string;
+                firstName: string;
+                middleName: string | null;
+                lastName: string;
+                birthDate: string | null;
+                sex: ('female' | 'male') | null;
+                civilStatus: ('single' | 'married' | 'widowed' | 'separated') | null;
+                isSoloParent: boolean;
+                address: string | null;
+                phone: string | null;
+                email: string | null;
+                position: string | null;
+                region: string;
+                sssNo: string | null;
+                philhealthNo: string | null;
+                pagibigNo: string | null;
+                tin: string | null;
+                /** @enum {string} */
+                employmentType: 'regular' | 'probationary' | 'contractual' | 'kasambahay';
+                /** @enum {string} */
+                payType: 'monthly' | 'semi_monthly' | 'daily' | 'hourly';
+                /**
+                 * @default standard
+                 * @enum {string}
+                 */
+                paySchedule: 'standard' | 'twice_weekly';
+                baseRate: string;
+                dailyFactor: 313 | 261 | 365 | 393;
+                restDays: number[];
+                hireDate: string;
+                /** @enum {string} */
+                status: 'active' | 'inactive' | 'separated';
+                separationDate: string | null;
+                allowances: {
+                  name: string;
+                  amount: string;
+                  /** @enum {string} */
+                  kind: 'taxable' | 'de_minimis';
+                  deMinimisType: string | null;
+                }[];
+                dependents: {
+                  name: string;
+                  relationship: string;
+                  birthDate: string | null;
+                }[];
+                payout: {
+                  /** @enum {string} */
+                  method: 'bank' | 'gcash' | 'cash';
+                  bankName: string | null;
+                  accountName: string | null;
+                  accountNumber: string | null;
+                };
+              };
+              changes: {
+                field: string;
+                label: string;
+                from: string | null;
+                to: string | null;
+              }[];
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/employee-requests/{id}/cancel': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Withdraw a pending request (the requester or the owner) */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind: 'create' | 'update';
+              employeeId: string | null;
+              /** @enum {string} */
+              status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+              summary: {
+                employeeNo: string;
+                fullName: string;
+              };
+              requestedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              requestedAt: string;
+              decidedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              decidedAt: string | null;
+              decisionNote: string | null;
+              resultEmployeeId: string | null;
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/employee-requests/{id}/approve': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve: create or update the employee exactly as a direct owner edit would */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind: 'create' | 'update';
+              employeeId: string | null;
+              /** @enum {string} */
+              status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+              summary: {
+                employeeNo: string;
+                fullName: string;
+              };
+              requestedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              requestedAt: string;
+              decidedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              decidedAt: string | null;
+              decisionNote: string | null;
+              resultEmployeeId: string | null;
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/employee-requests/{id}/reject': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reject a pending request with a reason */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          id: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            reason: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Default Response */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind: 'create' | 'update';
+              employeeId: string | null;
+              /** @enum {string} */
+              status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+              summary: {
+                employeeNo: string;
+                fullName: string;
+              };
+              requestedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              requestedAt: string;
+              decidedBy: {
+                /** Format: uuid */
+                id: string;
+                name: string;
+                email: string;
+              } | null;
+              decidedAt: string | null;
+              decisionNote: string | null;
+              resultEmployeeId: string | null;
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/users/': {
     parameters: {
       query?: never;
@@ -1009,7 +1964,7 @@ export interface paths {
               name: string;
               email: string;
               /** @enum {string} */
-              role: 'owner' | 'viewer';
+              role: 'owner' | 'viewer' | 'encoder';
               totpEnabled: boolean;
               createdAt: string;
             }[];
@@ -1093,7 +2048,7 @@ export interface paths {
       };
     };
     put?: never;
-    /** Add a read-only viewer */
+    /** Add a read-only viewer or an encoder (submits employee changes for approval) */
     post: {
       parameters: {
         query?: never;
@@ -1108,6 +2063,11 @@ export interface paths {
             /** Format: email */
             email: string;
             password: string;
+            /**
+             * @default viewer
+             * @enum {string}
+             */
+            role?: 'viewer' | 'encoder';
           };
         };
       };
@@ -1124,7 +2084,7 @@ export interface paths {
               name: string;
               email: string;
               /** @enum {string} */
-              role: 'owner' | 'viewer';
+              role: 'owner' | 'viewer' | 'encoder';
               totpEnabled: boolean;
               createdAt: string;
             };
@@ -1223,7 +2183,7 @@ export interface paths {
     get?: never;
     put?: never;
     post?: never;
-    /** Remove a viewer (the owner cannot be removed) */
+    /** Remove a viewer or encoder (the owner cannot be removed) */
     delete: {
       parameters: {
         query?: never;
@@ -1369,7 +2329,8 @@ export interface paths {
                   | 'semi_monthly_2'
                   | 'monthly'
                   | 'thirteenth_month'
-                  | 'final_pay';
+                  | 'final_pay'
+                  | 'twice_weekly';
                 /** @enum {string} */
                 status: 'draft' | 'review' | 'approved' | 'paid';
                 periodStart: string;
@@ -1382,6 +2343,7 @@ export interface paths {
                 name: string;
                 type: string;
               }[];
+              pendingRequests: number;
             };
           };
         };
@@ -3000,6 +3962,8 @@ export interface paths {
               employmentType: 'regular' | 'probationary' | 'contractual' | 'kasambahay';
               /** @enum {string} */
               payType: 'monthly' | 'semi_monthly' | 'daily' | 'hourly';
+              /** @enum {string} */
+              paySchedule: 'standard' | 'twice_weekly';
               baseRate: string;
               dailyFactor: number;
               region: string;
@@ -3122,6 +4086,11 @@ export interface paths {
             employmentType: 'regular' | 'probationary' | 'contractual' | 'kasambahay';
             /** @enum {string} */
             payType: 'monthly' | 'semi_monthly' | 'daily' | 'hourly';
+            /**
+             * @default standard
+             * @enum {string}
+             */
+            paySchedule?: 'standard' | 'twice_weekly';
             baseRate: string;
             dailyFactor: 313 | 261 | 365 | 393;
             restDays: number[];
@@ -3180,6 +4149,11 @@ export interface paths {
               employmentType: 'regular' | 'probationary' | 'contractual' | 'kasambahay';
               /** @enum {string} */
               payType: 'monthly' | 'semi_monthly' | 'daily' | 'hourly';
+              /**
+               * @default standard
+               * @enum {string}
+               */
+              paySchedule: 'standard' | 'twice_weekly';
               baseRate: string;
               dailyFactor: 313 | 261 | 365 | 393;
               restDays: number[];
@@ -3345,6 +4319,11 @@ export interface paths {
               employmentType: 'regular' | 'probationary' | 'contractual' | 'kasambahay';
               /** @enum {string} */
               payType: 'monthly' | 'semi_monthly' | 'daily' | 'hourly';
+              /**
+               * @default standard
+               * @enum {string}
+               */
+              paySchedule: 'standard' | 'twice_weekly';
               baseRate: string;
               dailyFactor: 313 | 261 | 365 | 393;
               restDays: number[];
@@ -3491,6 +4470,11 @@ export interface paths {
             employmentType: 'regular' | 'probationary' | 'contractual' | 'kasambahay';
             /** @enum {string} */
             payType: 'monthly' | 'semi_monthly' | 'daily' | 'hourly';
+            /**
+             * @default standard
+             * @enum {string}
+             */
+            paySchedule?: 'standard' | 'twice_weekly';
             baseRate: string;
             dailyFactor: 313 | 261 | 365 | 393;
             restDays: number[];
@@ -3549,6 +4533,11 @@ export interface paths {
               employmentType: 'regular' | 'probationary' | 'contractual' | 'kasambahay';
               /** @enum {string} */
               payType: 'monthly' | 'semi_monthly' | 'daily' | 'hourly';
+              /**
+               * @default standard
+               * @enum {string}
+               */
+              paySchedule: 'standard' | 'twice_weekly';
               baseRate: string;
               dailyFactor: 313 | 261 | 365 | 393;
               restDays: number[];
@@ -6799,7 +7788,13 @@ export interface paths {
       parameters: {
         query?: {
           status?: 'draft' | 'review' | 'approved' | 'paid';
-          kind?: 'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+          kind?:
+            | 'semi_monthly_1'
+            | 'semi_monthly_2'
+            | 'monthly'
+            | 'thirteenth_month'
+            | 'final_pay'
+            | 'twice_weekly';
         };
         header?: never;
         path?: never;
@@ -6818,7 +7813,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -6957,7 +7957,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -7132,7 +8137,189 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
+              /** @enum {string} */
+              status: 'draft' | 'review' | 'approved' | 'paid';
+              periodStart: string;
+              periodEnd: string;
+              payDate: string;
+              /** Format: uuid */
+              ratesVersionId: string;
+              totals: {
+                gross: string;
+                deductions: string;
+                net: string;
+                employerShares: string;
+              };
+              warningCount: number;
+              employeeCount: number;
+              createdAt: string;
+              approvedAt: string | null;
+              paidAt: string | null;
+              ratesVersion: string;
+              ratesVerified: boolean;
+              thirteenthMode: ('half' | 'full') | null;
+              finalPayEmployeeId: string | null;
+              lastReopenReason: string | null;
+              /** @enum {string} */
+              contributionSchedule: 'second_cutoff' | 'split';
+              payslips: {
+                /** Format: uuid */
+                id: string;
+                /** Format: uuid */
+                employeeId: string;
+                employeeNo: string;
+                employeeName: string;
+                gross: string;
+                totalDeductions: string;
+                net: string;
+                employerShares: string;
+                warnings: {
+                  /** @enum {string} */
+                  code:
+                    | 'below_minimum_wage'
+                    | 'missing_gov_ids'
+                    | 'negative_net'
+                    | 'kasambahay_employer_shoulders_ee'
+                    | 'unknown_de_minimis_type';
+                  /** @enum {string} */
+                  severity: 'info' | 'warning' | 'error';
+                  message: string;
+                }[];
+              }[];
+            };
+          };
+        };
+        /** @description Default Response */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+        /** @description Default Response */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              error: {
+                code: string;
+                message: string;
+                details?: unknown;
+              };
+            };
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/payroll-runs/twice-weekly': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Twice-weekly payout for staff on that schedule: Wednesday pays Sun–Wed, Saturday pays Thu–Sat */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': {
+            payDate: string;
+          };
+        };
+      };
+      responses: {
+        /** @description Default Response */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': {
+              /** Format: uuid */
+              id: string;
+              /** @enum {string} */
+              kind:
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -7309,7 +8496,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -7475,7 +8667,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -7745,7 +8942,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -7913,7 +9115,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -8081,7 +9288,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -8249,7 +9461,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -8417,7 +9634,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -8591,7 +9813,12 @@ export interface paths {
               id: string;
               /** @enum {string} */
               kind:
-                'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+                | 'semi_monthly_1'
+                | 'semi_monthly_2'
+                | 'monthly'
+                | 'thirteenth_month'
+                | 'final_pay'
+                | 'twice_weekly';
               /** @enum {string} */
               status: 'draft' | 'review' | 'approved' | 'paid';
               periodStart: string;
@@ -8975,7 +10202,8 @@ export interface paths {
                   | 'semi_monthly_2'
                   | 'monthly'
                   | 'thirteenth_month'
-                  | 'final_pay';
+                  | 'final_pay'
+                  | 'twice_weekly';
                 /** @enum {string} */
                 status: 'draft' | 'review' | 'approved' | 'paid';
                 periodStart: string;

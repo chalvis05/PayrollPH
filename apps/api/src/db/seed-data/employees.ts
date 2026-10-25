@@ -21,6 +21,8 @@ type Sample = Pick<
   | 'hireDate'
 > & {
   missingIds?: readonly ('sss' | 'philhealth' | 'pagibig' | 'tin')[];
+  /** Twice-weekly (Wed & Sat) instead of the standard schedule. */
+  paySchedule?: EmployeeInput['paySchedule'];
   payout?: EmployeeInput['payout'];
   allowances?: EmployeeInput['allowances'];
   dependents?: EmployeeInput['dependents'];
@@ -189,6 +191,7 @@ const SAMPLES: Sample[] = [
     lastName: 'Domingo',
     sex: 'male',
     position: 'Carpenter',
+    paySchedule: 'twice_weekly',
     employmentType: 'regular',
     payType: 'daily',
     baseRate: '755.00',
@@ -253,6 +256,7 @@ const SAMPLES: Sample[] = [
     lastName: 'Salazar',
     sex: 'female',
     position: 'Nanny',
+    paySchedule: 'twice_weekly',
     employmentType: 'kasambahay',
     payType: 'daily',
     baseRate: '400.00',
@@ -378,6 +382,7 @@ export const SAMPLE_EMPLOYEES: EmployeeInput[] = SAMPLES.map((s, idx) => {
     tin: missing.has('tin') ? null : ids.tin,
     employmentType: s.employmentType,
     payType: s.payType,
+    paySchedule: s.paySchedule ?? 'standard',
     baseRate: s.baseRate,
     dailyFactor: s.dailyFactor,
     restDays: s.restDays,

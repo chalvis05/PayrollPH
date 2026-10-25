@@ -32,7 +32,7 @@ export function toUserDto(u: {
   id: string;
   name: string;
   email: string;
-  role: 'owner' | 'viewer';
+  role: 'owner' | 'viewer' | 'encoder';
   totpEnabled: boolean;
   createdAt: Date;
 }): z.infer<typeof UserSchema> {

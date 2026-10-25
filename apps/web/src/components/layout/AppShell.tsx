@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useMatches } from 'react-router';
 import { cn } from '../../lib/cn';
@@ -5,7 +6,8 @@ import { focusRing } from '../Button';
 import { ThemeToggle } from '../ThemeToggle';
 import { navSections } from './nav';
 import { UserPanel } from './UserPanel';
-import { useIsOwner } from '../../lib/auth';
+import { api, unwrap } from '../../api/client';
+import { useIsEncoder, useIsOwner } from '../../lib/auth';
 
 const SIDEBAR_KEY = 'payrollph.sidebarCollapsed';
 
@@ -79,6 +81,15 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
 
 function NavLinks({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
   const isOwner = useIsOwner();
+  const isEncoder = useIsEncoder();
+  // Same key as the Approvals page's "Waiting" list, so both share one cache entry.
+  const pending = useQuery({
+    queryKey: ['employee-requests', 'pending'],
+    queryFn: () =>
+      unwrap(api.GET('/api/employee-requests/', { params: { query: { status: 'pending' } } })),
+    enabled: isOwner || isEncoder,
+  });
+  const pendingCount = pending.data?.length ?? 0;
   return (
     <nav aria-label="Main" className="flex-1 overflow-y-auto px-2 py-3">
       {navSections.map((section) => (
@@ -93,7 +104,9 @@ function NavLinks({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: 
           </p>
           <ul className="space-y-0.5">
             {section.items
-              .filter((item) => isOwner || item.ownerOnly !== true)
+              .filter((item) =>
+                item.approvers === true ? isOwner || isEncoder : isOwner || item.ownerOnly !== true,
+              )
               .map((item) => (
                 <li key={item.to}>
                   <NavLink
@@ -120,7 +133,15 @@ function NavLinks({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: 
                         <span className="sr-only">{item.label}</span>
                       </>
                     ) : (
-                      item.label
+                      <>
+                        {item.label}
+                        {item.to === '/approvals' && pendingCount > 0 ? (
+                          <span className="ml-auto rounded-full bg-amber-500 px-2 text-xs font-semibold text-white">
+                            {pendingCount}
+                            <span className="sr-only"> waiting</span>
+                          </span>
+                        ) : null}
+                      </>
                     )}
                   </NavLink>
                 </li>

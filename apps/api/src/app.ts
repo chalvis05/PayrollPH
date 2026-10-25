@@ -26,6 +26,7 @@ import { backupRoutes } from './routes/backups';
 import { dashboardRoutes } from './routes/dashboard';
 import { deductionRoutes } from './routes/deductions';
 import { documentRoutes } from './routes/documents';
+import { employeeRequestRoutes } from './routes/employeeRequests';
 import { employeeRoutes } from './routes/employees';
 import { holidayRoutes } from './routes/holidays';
 import { loanRoutes } from './routes/loans';
@@ -139,6 +140,8 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   // Public: first-run setup and authentication.
   await app.register(setupRoutes, { prefix: '/api' });
   await app.register(authRoutes, { prefix: '/api/auth' });
+  // Encoders submit here; the owner approves. Own role checks (writes are not owner-only).
+  await app.register(employeeRequestRoutes, { prefix: '/api/employee-requests' });
 
   // Everything else: any signed-in user may read; only the owner may change things.
   await app.register(

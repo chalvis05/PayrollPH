@@ -199,6 +199,7 @@ export function employeeInput(overrides: Partial<EmployeeInput> = {}): EmployeeI
     tin: '123-456-789-000',
     employmentType: 'regular',
     payType: 'monthly',
+    paySchedule: 'standard',
     baseRate: '20000.00',
     dailyFactor: 261,
     restDays: [6, 7],

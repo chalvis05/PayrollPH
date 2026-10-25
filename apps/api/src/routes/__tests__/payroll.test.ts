@@ -435,3 +435,124 @@ describe('final pay', () => {
     expect(back).toMatchObject({ status: 'inactive', separationDate: null });
   });
 });
+
+// October 2026: Oct 3 is the first Saturday payout; Oct 28 is a Wednesday, Oct 31 a Saturday
+// and the last payout of the month (the next one, Wed Nov 4, is in November).
+async function createTwiceWeekly(payDate: string): Promise<RunDetail> {
+  const res = await owner.post<RunDetail>('/api/payroll-runs/twice-weekly', { payDate });
+  if (res.status !== 201)
+    throw new Error(`twice-weekly create failed ${res.status} ${JSON.stringify(res.body)}`);
+  return res.body;
+}
+
+describe('twice-weekly payouts (every Wednesday and Saturday)', () => {
+  it('Wednesday pays Sunday–Wednesday, Saturday pays Thursday–Saturday; other days are refused', async () => {
+    await addEmployee({
+      paySchedule: 'twice_weekly',
+      payType: 'daily',
+      baseRate: '800.00',
+      dailyFactor: 313,
+      restDays: [7],
+    });
+    const wed = await createTwiceWeekly('2026-10-28');
+    expect(wed).toMatchObject({ periodStart: '2026-10-25', periodEnd: '2026-10-28' });
+    const sat = await createTwiceWeekly('2026-10-31');
+    expect(sat).toMatchObject({ periodStart: '2026-10-29', periodEnd: '2026-10-31' });
+    const fri = await owner.post('/api/payroll-runs/twice-weekly', { payDate: '2026-10-30' });
+    expect(fri.status).toBe(400);
+    const dup = await owner.post<{ error: { code: string } }>('/api/payroll-runs/twice-weekly', {
+      payDate: '2026-10-28',
+    });
+    expect(dup.body.error.code).toBe('RUN_EXISTS');
+  });
+
+  it('daily staff: pay per day worked; contributions only on the last payout, on the month’s pay', async () => {
+    const id = await addEmployee({
+      paySchedule: 'twice_weekly',
+      payType: 'daily',
+      baseRate: '800.00',
+      dailyFactor: 313,
+      restDays: [7],
+    });
+    for (const d of ['26', '27', '28', '29', '30', '31']) await dtr(id, `2026-10-${d}`);
+
+    const wed = (await slip(await createTwiceWeekly('2026-10-28'), id)).computation;
+    // 3 days × 800; not the month's last payout → no contributions; 2,400 < 250,000/104 → no tax.
+    expect(wed.grossPay).toBe('2400.00');
+    expect(wed.employeeDeductions).toEqual([]);
+    expect(wed.netPay).toBe('2400.00');
+
+    const sat = (await slip(await createTwiceWeekly('2026-10-31'), id)).computation;
+    // Month's actual pay 2,400 + 2,400 = 4,800 → SSS MSC 5,000: EE 250, ER 500, EC 10.
+    // PhilHealth on 800 × 313 / 12 = 20,866.67 → EE 521.67. Pag-IBIG 200.
+    expect(sat.grossPay).toBe('2400.00');
+    expect(amount(sat.employeeDeductions, 'sss_ee')).toBe('250.00');
+    expect(amount(sat.employerShares, 'sss_ec')).toBe('10.00');
+    expect(amount(sat.employeeDeductions, 'philhealth_ee')).toBe('521.67');
+    expect(amount(sat.employeeDeductions, 'pagibig_ee')).toBe('200.00');
+    expect(sat.netPay).toBe('1428.33');
+  });
+
+  it('salaried staff get monthly × 12 ÷ 104 per payout; schedules never mix', async () => {
+    const tw = await addEmployee({ paySchedule: 'twice_weekly', baseRate: '20800.00' });
+    const std = await addEmployee({ baseRate: '20000.00' });
+    const payout = await createTwiceWeekly('2026-10-28');
+    expect(payout.payslips.map((p) => p.employeeId)).toEqual([tw]);
+    expect((await slip(payout, tw)).computation.grossPay).toBe('2400.00'); // 20,800 × 12 / 104
+    const cutoff = await createRun('semi_monthly_2', '2026-10');
+    expect(cutoff.payslips.map((p) => p.employeeId)).toEqual([std]);
+  });
+
+  it('loans set to the 2nd cutoff deduct on the last payout of the month only', async () => {
+    const id = await addEmployee({ paySchedule: 'twice_weekly', baseRate: '20800.00' });
+    const [loan] = await ctx.db
+      .insert(loans)
+      .values({
+        employeeId: id,
+        type: 'company',
+        principal: '3000.00',
+        amortization: '500.00',
+        deductOn: 'second_cutoff',
+        startDate: '2026-01-01',
+      })
+      .returning();
+    if (!loan) throw new Error('no loan');
+    await recordDisbursement(ctx.db, loan);
+    const wed = (await slip(await createTwiceWeekly('2026-10-28'), id)).computation;
+    expect(amount(wed.employeeDeductions, `loan:${loan.id}`)).toBeUndefined();
+    const sat = (await slip(await createTwiceWeekly('2026-10-31'), id)).computation;
+    expect(amount(sat.employeeDeductions, `loan:${loan.id}`)).toBe('500.00');
+  });
+
+  it('approving a payout locks its attendance days', async () => {
+    await addEmployee({ paySchedule: 'twice_weekly', baseRate: '20800.00' });
+    const payout = await createTwiceWeekly('2026-10-28');
+    await approve(payout.id);
+    expect(await isAttendanceLocked(ctx.db, '2026-10-26')).toBe(true);
+    expect(await isAttendanceLocked(ctx.db, '2026-10-29')).toBe(false);
+  });
+});
+
+describe('final pay: worked holidays are not paid twice', () => {
+  it('a salaried employee who worked a regular holiday gets the premium instead of a plain day', async () => {
+    const id = await addEmployee({
+      baseRate: '20000.00',
+      dailyFactor: 261,
+      restDays: [6, 7],
+      hireDate: '2026-04-01',
+    });
+    await dtr(id, '2026-04-09'); // Araw ng Kagitingan (regular holiday), 8 hours
+    const res = await owner.post<RunDetail>('/api/final-pay', {
+      employeeId: id,
+      separationDate: '2026-04-10',
+      payDate: '2026-04-30',
+      unusedSilDays: 0,
+      reason: 'Contract ended',
+    });
+    const c = (await slip(res.body, id)).computation;
+    // Workdays Apr 1–10 excluding weekends = 8, minus the worked holiday = 7 × 919.5402 = 6,436.78.
+    // Holiday work: 8 h × 114.9425 × 2.00 = 1,839.08 (before the fix the day was also paid as basic).
+    expect(amount(c.earnings, 'basic')).toBe('6436.78');
+    expect(amount(c.earnings, 'regular_work')).toBe('1839.08');
+  });
+});

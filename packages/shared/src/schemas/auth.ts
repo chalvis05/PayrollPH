@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
-export const RoleSchema = z.enum(['owner', 'viewer']);
+/**
+ * owner: everything. viewer: read-only. encoder: read-only, plus can submit new employees and
+ * employee edits, which only take effect when the owner approves them.
+ */
+export const RoleSchema = z.enum(['owner', 'viewer', 'encoder']);
 export type Role = z.infer<typeof RoleSchema>;
 
 export const PasswordSchema = z.string().min(12, 'Use at least 12 characters').max(200, 'Too long');
@@ -35,6 +39,12 @@ export const CreateViewerSchema = z.object({
   password: PasswordSchema,
 });
 export type CreateViewerInput = z.infer<typeof CreateViewerSchema>;
+
+/** Add a user other than the owner: a read-only viewer or an encoder. */
+export const CreateUserSchema = CreateViewerSchema.extend({
+  role: z.enum(['viewer', 'encoder']).default('viewer'),
+});
+export type CreateUserInput = z.infer<typeof CreateUserSchema>;
 
 export const ChangePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(200),

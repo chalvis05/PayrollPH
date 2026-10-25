@@ -163,3 +163,42 @@ describe('payroll run rules', () => {
     );
   });
 });
+
+describe('twice-weekly payouts', () => {
+  it('only accepts a Wednesday or Saturday pay date', async () => {
+    const { CreateTwiceWeeklyRunSchema } = await import('../payroll');
+    // 2026-10-28 is a Wednesday, 2026-10-31 a Saturday, 2026-10-30 a Friday.
+    expect(CreateTwiceWeeklyRunSchema.safeParse({ payDate: '2026-10-28' }).success).toBe(true);
+    expect(CreateTwiceWeeklyRunSchema.safeParse({ payDate: '2026-10-31' }).success).toBe(true);
+    expect(CreateTwiceWeeklyRunSchema.safeParse({ payDate: '2026-10-30' }).success).toBe(false);
+  });
+
+  it('defaults the pay schedule to standard', () => {
+    const parsed = EmployeeInputSchema.parse(validEmployee);
+    expect(parsed.paySchedule).toBe('standard');
+  });
+});
+
+describe('employee change requests (encoder)', () => {
+  it('accepts masked gov IDs as "unchanged", which a direct edit rejects', async () => {
+    const { EmployeeChangeInputSchema } = await import('../employee');
+    const masked = { ...validEmployee, sssNo: '••••5678', tin: '••••9000' };
+    expect(EmployeeChangeInputSchema.safeParse(masked).success).toBe(true);
+    expect(EmployeeInputSchema.safeParse(masked).success).toBe(false);
+  });
+
+  it('still validates real gov IDs', async () => {
+    const { EmployeeChangeInputSchema } = await import('../employee');
+    expect(EmployeeChangeInputSchema.safeParse({ ...validEmployee, sssNo: '12345' }).success).toBe(
+      false,
+    );
+  });
+
+  it('creates encoder users; never a second owner', async () => {
+    const { CreateUserSchema } = await import('../auth');
+    const base = { name: 'Enc', email: 'enc@example.test', password: 'long-enough-password' };
+    expect(CreateUserSchema.parse({ ...base, role: 'encoder' }).role).toBe('encoder');
+    expect(CreateUserSchema.parse(base).role).toBe('viewer');
+    expect(CreateUserSchema.safeParse({ ...base, role: 'owner' }).success).toBe(false);
+  });
+});

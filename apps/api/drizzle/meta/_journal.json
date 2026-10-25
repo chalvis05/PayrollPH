@@ -22,6 +22,20 @@
       "when": 1792777491312,
       "tag": "0002_payslip_final_pay",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792926582881,
+      "tag": "0003_encoder_and_twice_weekly",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792926583939,
+      "tag": "0004_rates_twice_weekly_periods",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,8 @@ export interface NavItem {
   end?: boolean;
   /** Hidden from read-only viewers (the API refuses them anyway). */
   ownerOnly?: boolean;
+  /** Shown to the owner and encoders (hidden from viewers). */
+  approvers?: boolean;
 }
 
 export interface NavSection {
@@ -21,6 +23,7 @@ export const navSections: NavSection[] = [
     heading: 'People',
     items: [
       { to: '/employees', label: 'Employees' },
+      { to: '/approvals', label: 'Approvals', approvers: true },
       { to: '/attendance', label: 'Attendance' },
       { to: '/holidays', label: 'Holidays' },
     ],

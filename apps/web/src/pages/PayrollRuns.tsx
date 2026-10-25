@@ -2,6 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import {
   CreatePayrollRunSchema,
   CreateThirteenthRunSchema,
+  CreateTwiceWeeklyRunSchema,
   type PayrollRunKind,
   type PayrollRunStatus,
 } from '@payrollph/shared';
@@ -319,6 +320,80 @@ function ThirteenthRunModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+type TwiceWeeklyIn = z.input<typeof CreateTwiceWeeklyRunSchema>;
+type TwiceWeeklyOut = z.output<typeof CreateTwiceWeeklyRunSchema>;
+
+/** Mounted only while open, so every opening starts from fresh defaults. */
+function TwiceWeeklyRunModal({ onClose }: { onClose: () => void }) {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [existing, setExisting] = useState<string | null>(null);
+  const { control, handleSubmit, formState, setError } = useForm<
+    TwiceWeeklyIn,
+    unknown,
+    TwiceWeeklyOut
+  >({
+    resolver: zodResolver(CreateTwiceWeeklyRunSchema),
+    defaultValues: { payDate: '' },
+  });
+
+  const onSubmit = async (body: TwiceWeeklyOut) => {
+    setExisting(null);
+    try {
+      const run = await unwrap(api.POST('/api/payroll-runs/twice-weekly', { body }));
+      await qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      await qc.invalidateQueries({ queryKey: ['dashboard'] });
+      qc.setQueryData(['payroll-run', run.id], run);
+      onClose();
+      void navigate(`/payroll/${run.id}`);
+    } catch (err) {
+      setExisting(existingRunId(err));
+      applyServerError(err, setError);
+    }
+  };
+
+  const formId = useId();
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Twice-weekly payout"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="submit" form={formId} loading={formState.isSubmitting}>
+            Create and compute
+          </Button>
+        </>
+      }
+    >
+      <form
+        id={formId}
+        noValidate
+        className="space-y-4"
+        onSubmit={(e) => void handleSubmit(onSubmit)(e)}
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          Pays employees on the twice-weekly schedule. Wednesday pays Sunday to Wednesday; Saturday
+          pays Thursday to Saturday. SSS, PhilHealth and Pag-IBIG come off the last payout of the
+          month; tax is withheld every payout.
+        </p>
+        <FormError errors={formState.errors} />
+        {existing ? <ExistingRunLink id={existing} /> : null}
+        <DateField
+          control={control}
+          name="payDate"
+          label="Pay date"
+          hint="A Wednesday or a Saturday."
+          required
+        />
+      </form>
+    </Modal>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 
 export const runColumns: DataTableColumn<Row>[] = [
@@ -368,7 +443,7 @@ export function PayrollRunsPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<PayrollRunStatus | ''>('');
   const [kind, setKind] = useState<PayrollRunKind | ''>('');
-  const [modal, setModal] = useState<'regular' | 'thirteenth' | null>(null);
+  const [modal, setModal] = useState<'regular' | 'thirteenth' | 'twice_weekly' | null>(null);
 
   const runs = useQuery({
     queryKey: ['payroll-runs', { status, kind }],
@@ -386,10 +461,13 @@ export function PayrollRunsPage() {
     <>
       <PageHeader
         title="Payroll runs"
-        description="Semi-monthly, monthly, 13th-month and final-pay runs."
+        description="Semi-monthly, monthly, twice-weekly, 13th-month and final-pay runs."
         actions={
           isOwner ? (
             <>
+              <Button variant="secondary" onClick={() => setModal('twice_weekly')}>
+                Twice-weekly payout
+              </Button>
               <Button variant="secondary" onClick={() => setModal('thirteenth')}>
                 13th month run
               </Button>
@@ -471,6 +549,7 @@ export function PayrollRunsPage() {
         <>
           {modal === 'regular' ? <NewRunModal onClose={() => setModal(null)} /> : null}
           {modal === 'thirteenth' ? <ThirteenthRunModal onClose={() => setModal(null)} /> : null}
+          {modal === 'twice_weekly' ? <TwiceWeeklyRunModal onClose={() => setModal(null)} /> : null}
         </>
       ) : null}
     </>

@@ -197,6 +197,23 @@ export function DashboardPage() {
       ) : null}
       {data ? (
         <div className="space-y-6">
+          {data.pendingRequests > 0 ? (
+            <Banner
+              tone="warning"
+              title={isOwner ? 'Employee changes waiting for you' : 'Your changes are waiting'}
+            >
+              {data.pendingRequests === 1
+                ? '1 employee change is'
+                : `${data.pendingRequests} employee changes are`}{' '}
+              waiting for {isOwner ? 'your' : 'the owner’s'} approval.{' '}
+              <Link
+                to="/approvals"
+                className={`font-semibold underline underline-offset-2 ${focusRing}`}
+              >
+                Open Approvals
+              </Link>
+            </Banner>
+          ) : null}
           {data.rates && !data.rates.verified ? <RatesVerifyBanner to="/settings/rates" /> : null}
           {data.rates === null ? (
             <Banner tone="warning" title="No statutory rates in effect">

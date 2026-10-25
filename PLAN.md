@@ -158,7 +158,7 @@ PayrollPH/
 
 ## 5. Data model (Phase 2 summary)
 
-`users` (role owner|viewer, argon2 hash, totp_secret enc), `sessions`,
+`users` (role owner|viewer|encoder, argon2 hash, totp_secret enc), `sessions`,
 `audit_log` (actor, action, entity, entity_id, before jsonb, after jsonb, at),
 `settings` (singleton: owner info, pay schedule, employee_cap, smtp enc,
 rates_verified flag), `statutory_rates` (version, effective_from, data jsonb validated

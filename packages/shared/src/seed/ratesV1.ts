@@ -51,7 +51,8 @@ export const RATES_V1: StatutoryRates = {
       { over: '2000000', base: '402500', rate: '0.30' },
       { over: '8000000', base: '2202500', rate: '0.35' },
     ],
-    periodsPerYear: { monthly: 12, semi_monthly: 24, weekly: 52, daily: 313 },
+    // twice_weekly: paid every Wednesday and Saturday.
+    periodsPerYear: { monthly: 12, semi_monthly: 24, weekly: 52, twice_weekly: 104, daily: 313 },
   },
   benefits: {
     otherBenefitsCeiling: '90000', // TODO VERIFY

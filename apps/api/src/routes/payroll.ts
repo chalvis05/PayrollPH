@@ -1,6 +1,7 @@
 import {
   CreatePayrollRunSchema,
   CreateThirteenthRunSchema,
+  CreateTwiceWeeklyRunSchema,
   FinalPayRequestSchema,
   FinalPayResultSchema,
   PayrollRunKindSchema,
@@ -26,6 +27,7 @@ import {
   createFinalPayRun,
   createRegularRun,
   createThirteenthRun,
+  createTwiceWeeklyRun,
   recomputeRun,
   runSnapshot,
   transitionRun,
@@ -197,6 +199,24 @@ export const payrollRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request, reply) => {
       const me = requireOwner(request);
       const id = await app.db.transaction((tx) => createThirteenthRun(tx, request.body, me.id));
+      return reply.status(201).send(await loadDetail(id));
+    },
+  );
+
+  app.post(
+    '/payroll-runs/twice-weekly',
+    {
+      schema: {
+        tags: ['payroll'],
+        summary:
+          'Twice-weekly payout for staff on that schedule: Wednesday pays Sun–Wed, Saturday pays Thu–Sat',
+        body: CreateTwiceWeeklyRunSchema,
+        response: { 201: RunDetailSchema, ...errorResponses },
+      },
+    },
+    async (request, reply) => {
+      const me = requireOwner(request);
+      const id = await app.db.transaction((tx) => createTwiceWeeklyRun(tx, request.body, me.id));
       return reply.status(201).send(await loadDetail(id));
     },
   );

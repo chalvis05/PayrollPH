@@ -8,6 +8,8 @@ export const PayrollRunKindSchema = z.enum([
   'monthly',
   'thirteenth_month',
   'final_pay',
+  /** Wednesday (pays Sun–Wed) or Saturday (pays Thu–Sat) payout for twice-weekly staff. */
+  'twice_weekly',
 ]);
 export type PayrollRunKind = z.infer<typeof PayrollRunKindSchema>;
 
@@ -33,6 +35,21 @@ export const CreatePayrollRunSchema = z
   })
   .strict();
 export type CreatePayrollRunInput = z.infer<typeof CreatePayrollRunSchema>;
+
+/** 0 = Sunday … 6 = Saturday for a YYYY-MM-DD calendar date (no timezone shift). */
+export function weekdayOf(isoDate: string): number {
+  const [y = 0, m = 1, d = 1] = isoDate.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+/** A twice-weekly payout: the pay date is a Wednesday (covers Sun–Wed) or Saturday (Thu–Sat). */
+export const CreateTwiceWeeklyRunSchema = z.object({
+  payDate: DateSchema.refine(
+    (d) => weekdayOf(d) === 3 || weekdayOf(d) === 6,
+    'Twice-weekly payouts are on a Wednesday or a Saturday',
+  ),
+});
+export type CreateTwiceWeeklyRunInput = z.infer<typeof CreateTwiceWeeklyRunSchema>;
 
 export const CreateThirteenthRunSchema = z.object({
   year: z.number().int().min(2000).max(2100),

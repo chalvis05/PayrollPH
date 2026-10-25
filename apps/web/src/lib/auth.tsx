@@ -36,6 +36,11 @@ export function useIsOwner(): boolean {
   return useMe().data?.role === 'owner';
 }
 
+/** Encoders may propose employee additions and edits, which the owner approves. */
+export function useIsEncoder(): boolean {
+  return useMe().data?.role === 'encoder';
+}
+
 /** Refresh auth state after login, setup or logout. */
 export function useAuthRefresh() {
   const qc = useQueryClient();

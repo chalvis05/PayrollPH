@@ -4,6 +4,7 @@ import {
   DateSchema,
   EmploymentTypeSchema,
   NonNegMoneySchema,
+  PayScheduleSchema,
   PayTypeSchema,
 } from './common';
 
@@ -85,6 +86,8 @@ export const EmployeeInputSchema = z.object({
 
   employmentType: EmploymentTypeSchema,
   payType: PayTypeSchema,
+  /** standard = follows Settings (semi-monthly or monthly); twice_weekly = every Wed and Sat. */
+  paySchedule: PayScheduleSchema.default('standard'),
   baseRate: NonNegMoneySchema,
   dailyFactor: DailyFactorSchema,
   /** Rest days as ISO weekday numbers (1 = Monday … 7 = Sunday). */
@@ -98,6 +101,33 @@ export const EmployeeInputSchema = z.object({
   payout: PayoutSchema,
 });
 export type EmployeeInput = z.infer<typeof EmployeeInputSchema>;
+
+/**
+ * A masked sensitive value as shown to encoders and viewers, e.g. "••••5678". In an encoder's
+ * change request it means "keep the current value".
+ */
+export const MaskedValueSchema = z.string().regex(/^••••[0-9A-Za-z]{0,4}$/);
+export const isMaskedValue = (v: string | null): boolean =>
+  v !== null && MaskedValueSchema.safeParse(v).success;
+
+/**
+ * What an encoder submits for approval: a full employee record, where gov IDs that are still
+ * masked mean "unchanged" (encoders never see the real numbers of existing employees).
+ */
+export const EmployeeChangeInputSchema = EmployeeInputSchema.extend({
+  sssNo: z.union([SssNumberSchema, MaskedValueSchema]).nullable(),
+  philhealthNo: z.union([PhilhealthNumberSchema, MaskedValueSchema]).nullable(),
+  pagibigNo: z.union([PagibigNumberSchema, MaskedValueSchema]).nullable(),
+  tin: z.union([TinSchema, MaskedValueSchema]).nullable(),
+});
+export type EmployeeChangeInput = z.infer<typeof EmployeeChangeInputSchema>;
+
+export const ChangeRequestStatusSchema = z.enum(['pending', 'approved', 'rejected', 'cancelled']);
+export type ChangeRequestStatus = z.infer<typeof ChangeRequestStatusSchema>;
+
+export const RejectChangeRequestSchema = z.object({
+  reason: z.string().trim().min(3, 'Say why (at least 3 characters)').max(500),
+});
 
 export const EmployeeSchema = EmployeeInputSchema.extend({
   id: z.uuid(),

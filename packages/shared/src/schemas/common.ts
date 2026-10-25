@@ -46,8 +46,22 @@ export const DailyFactorSchema = z.union([
 export type DailyFactor = z.infer<typeof DailyFactorSchema>;
 
 /** Payroll frequency used to derive period withholding (periods per year come from rates). */
-export const PayFrequencySchema = z.enum(['monthly', 'semi_monthly', 'weekly', 'daily']);
+export const PayFrequencySchema = z.enum([
+  'monthly',
+  'semi_monthly',
+  'weekly',
+  'twice_weekly',
+  'daily',
+]);
 export type PayFrequency = z.infer<typeof PayFrequencySchema>;
+
+/**
+ * How often an employee is paid. `standard` follows the pay frequency in Settings
+ * (semi-monthly or monthly); `twice_weekly` is paid every Wednesday (Sun–Wed) and
+ * Saturday (Thu–Sat).
+ */
+export const PayScheduleSchema = z.enum(['standard', 'twice_weekly']);
+export type PaySchedule = z.infer<typeof PayScheduleSchema>;
 
 /** Kind of day for premium computation. */
 export const DayTypeSchema = z.enum([

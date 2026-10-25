@@ -30,7 +30,15 @@ const pk = () => uuid('id').primaryKey().defaultRandom();
 const day = (name: string) => date(name, { mode: 'string' });
 
 // ---------------------------------------------------------------- enums
-export const roleEnum = pgEnum('role', ['owner', 'viewer']);
+export const roleEnum = pgEnum('role', ['owner', 'viewer', 'encoder']);
+export const payScheduleEnum = pgEnum('pay_schedule', ['standard', 'twice_weekly']);
+export const changeRequestKindEnum = pgEnum('change_request_kind', ['create', 'update']);
+export const changeRequestStatusEnum = pgEnum('change_request_status', [
+  'pending',
+  'approved',
+  'rejected',
+  'cancelled',
+]);
 export const payTypeEnum = pgEnum('pay_type', ['monthly', 'semi_monthly', 'daily', 'hourly']);
 export const employmentTypeEnum = pgEnum('employment_type', [
   'regular',
@@ -78,6 +86,7 @@ export const payrollRunKindEnum = pgEnum('payroll_run_kind', [
   'monthly',
   'thirteenth_month',
   'final_pay',
+  'twice_weekly',
 ]);
 export const payrollRunStatusEnum = pgEnum('payroll_run_status', [
   'draft',
@@ -227,6 +236,7 @@ export const employees = pgTable(
     tinEnc: text('tin_enc'),
     employmentType: employmentTypeEnum('employment_type').notNull(),
     payType: payTypeEnum('pay_type').notNull(),
+    paySchedule: payScheduleEnum('pay_schedule').notNull().default('standard'),
     baseRate: money('base_rate').notNull(),
     dailyFactor: smallint('daily_factor').notNull(),
     /** ISO weekdays (1 = Mon … 7 = Sun). */
@@ -374,7 +384,9 @@ export const payrollRuns = pgTable(
     // One regular run per kind and period; 13th-month and final-pay runs may repeat.
     uniqueIndex('payroll_runs_regular_uq')
       .on(t.kind, t.periodStart)
-      .where(sql`${t.kind} IN ('semi_monthly_1', 'semi_monthly_2', 'monthly')`),
+      // Written as NOT IN the one-off kinds: a just-added enum value (twice_weekly) cannot be
+      // used in the migration's own transaction, and a ::text cast is not IMMUTABLE.
+      .where(sql`${t.kind} NOT IN ('thirteenth_month', 'final_pay')`),
   ],
 );
 
@@ -485,4 +497,39 @@ export const customDeductions = pgTable(
     createdAt: createdAt(),
   },
   (t) => [index('custom_deductions_employee_idx').on(t.employeeId)],
+);
+
+// ---------------------------------------------------------------- employee change requests
+/**
+ * Employee additions and edits submitted by an encoder. Nothing changes in `employees` until
+ * the owner approves. The proposed record contains gov IDs and account numbers, so it is stored
+ * encrypted (AES-256-GCM JSON); `summary` holds only what lists need.
+ */
+export const employeeChangeRequests = pgTable(
+  'employee_change_requests',
+  {
+    id: pk(),
+    kind: changeRequestKindEnum('kind').notNull(),
+    /** The employee being edited; null for a new-employee request. */
+    employeeId: uuid('employee_id').references(() => employees.id, { onDelete: 'cascade' }),
+    status: changeRequestStatusEnum('status').notNull().default('pending'),
+    payloadEnc: text('payload_enc').notNull(),
+    summary: jsonb('summary').$type<{ employeeNo: string; fullName: string }>().notNull(),
+    requestedBy: uuid('requested_by').references(() => users.id, { onDelete: 'set null' }),
+    requestedAt: timestamp('requested_at', { withTimezone: true }).notNull().defaultNow(),
+    decidedBy: uuid('decided_by').references(() => users.id, { onDelete: 'set null' }),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    decisionNote: text('decision_note'),
+    /** The employee created or updated by approval. */
+    resultEmployeeId: uuid('result_employee_id').references(() => employees.id, {
+      onDelete: 'set null',
+    }),
+  },
+  (t) => [
+    index('change_requests_status_idx').on(t.status, t.requestedAt),
+    // At most one pending edit per existing employee.
+    uniqueIndex('change_requests_one_pending_uq')
+      .on(t.employeeId)
+      .where(sql`${t.status} = 'pending' AND ${t.employeeId} IS NOT NULL`),
+  ],
 );

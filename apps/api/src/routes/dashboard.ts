@@ -1,8 +1,8 @@
 import { PayrollRunKindSchema, PayrollRunStatusSchema } from '@payrollph/shared';
-import { asc, desc, eq, gte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, sql } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { employees, holidays, payrollRuns, settings } from '../db/schema';
+import { employeeChangeRequests, employees, holidays, payrollRuns, settings } from '../db/schema';
 import { errorResponses } from '../lib/http';
 import { manilaToday } from '../services/dates';
 import { ratesForDate } from '../services/rates';
@@ -25,6 +25,8 @@ const DashboardSchema = z.object({
     }),
   ),
   upcomingHolidays: z.array(z.object({ date: z.string(), name: z.string(), type: z.string() })),
+  /** Employee changes waiting for the owner (owner: all; encoder: their own). */
+  pendingRequests: z.number().int(),
 });
 
 export const dashboardRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -37,8 +39,19 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (app) => {
         response: { 200: DashboardSchema, ...errorResponses },
       },
     },
-    async () => {
+    async (request) => {
       const today = manilaToday();
+      const user = request.user;
+      const pendingConds = [eq(employeeChangeRequests.status, 'pending')];
+      if (user && user.role !== 'owner')
+        pendingConds.push(eq(employeeChangeRequests.requestedBy, user.id));
+      const [pending] =
+        user && user.role !== 'viewer'
+          ? await app.db
+              .select({ n: sql<number>`count(*)::int` })
+              .from(employeeChangeRequests)
+              .where(and(...pendingConds))
+          : [];
       const [count] = await app.db
         .select({ n: sql<number>`count(*)::int` })
         .from(employees)
@@ -58,6 +71,7 @@ export const dashboardRoutes: FastifyPluginAsyncZod = async (app) => {
         .limit(5);
       return {
         activeEmployees: count?.n ?? 0,
+        pendingRequests: pending?.n ?? 0,
         employeeCap: cfg?.cap ?? 25,
         rates: rates
           ? { version: rates.version, effectiveFrom: rates.effectiveFrom, verified: rates.verified }

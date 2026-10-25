@@ -1,4 +1,9 @@
-import type { FinalPayResult, PayLine, PayslipComputation } from '@payrollph/shared';
+import type {
+  FinalPayResult,
+  PayLine,
+  PayrollRunKind,
+  PayslipComputation,
+} from '@payrollph/shared';
 import PDFDocument from 'pdfkit';
 
 /** Everything printed on one payslip. Amounts are 2-dp strings straight from the DB / engine. */
@@ -11,7 +16,7 @@ export interface PayslipPdfData {
     payType: 'monthly' | 'semi_monthly' | 'daily' | 'hourly';
   };
   run: {
-    kind: 'semi_monthly_1' | 'semi_monthly_2' | 'monthly' | 'thirteenth_month' | 'final_pay';
+    kind: PayrollRunKind;
     status: 'draft' | 'review' | 'approved' | 'paid';
     periodStart: string;
     periodEnd: string;
@@ -53,6 +58,7 @@ const RUN_KIND_LABEL: Record<PayslipPdfData['run']['kind'], string> = {
   monthly: 'Monthly',
   thirteenth_month: '13th month pay',
   final_pay: 'Final pay',
+  twice_weekly: 'Twice-weekly payout',
 };
 
 const PAY_TYPE_LABEL: Record<PayslipPdfData['employee']['payType'], string> = {

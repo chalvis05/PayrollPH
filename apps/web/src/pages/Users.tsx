@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CreateViewerSchema } from '@payrollph/shared';
+import { CreateUserSchema } from '@payrollph/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -11,15 +11,16 @@ import { Badge } from '../components/Badge';
 import { Banner } from '../components/Banner';
 import { Button, buttonClass } from '../components/Button';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
-import { FormError, TextField } from '../components/forms';
+import { FormError, SelectField, TextField } from '../components/forms';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { useIsOwner, useMe } from '../lib/auth';
 import { applyServerError } from '../lib/forms';
+import { roleLabels } from '../lib/labels';
 
 type Row = ResponseOf<'/api/users/', 'get'>[number];
-type FormIn = z.input<typeof CreateViewerSchema>;
-type FormOut = z.output<typeof CreateViewerSchema>;
+type FormIn = z.input<typeof CreateUserSchema>;
+type FormOut = z.output<typeof CreateUserSchema>;
 
 const usersKey = ['users'] as const;
 
@@ -35,13 +36,13 @@ function formatCreated(iso: string): string {
   return Number.isNaN(ms) ? iso : createdFormatter.format(ms);
 }
 
-function AddViewerModal({ onClose }: { onClose: () => void }) {
+function AddUserModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { control, handleSubmit, formState, setError } = useForm<FormIn, unknown, FormOut>({
-    resolver: zodResolver(CreateViewerSchema),
-    defaultValues: { name: '', email: '', password: '' },
+    resolver: zodResolver(CreateUserSchema),
+    defaultValues: { name: '', email: '', password: '', role: 'viewer' },
   });
-  const formId = 'add-viewer';
+  const formId = 'add-user';
 
   const onSubmit = async (body: FormOut) => {
     try {
@@ -57,14 +58,14 @@ function AddViewerModal({ onClose }: { onClose: () => void }) {
     <Modal
       open
       onClose={onClose}
-      title="Add viewer"
+      title="Add user"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
           <Button type="submit" form={formId} loading={formState.isSubmitting}>
-            Add viewer
+            Add user
           </Button>
         </>
       }
@@ -76,11 +77,22 @@ function AddViewerModal({ onClose }: { onClose: () => void }) {
         onSubmit={(e) => void handleSubmit(onSubmit)(e)}
       >
         <p className="text-sm text-slate-600 dark:text-slate-400">
-          Viewers can see employees, payroll and reports but cannot change anything. Government IDs
-          and account numbers are masked for them. Share the password with them privately; they can
+          Both roles see employees, payroll and reports with government IDs and account numbers
+          masked. A viewer cannot change anything. An encoder can add and edit employees, but each
+          change waits in Approvals until you approve it. Share the password privately; they can
           change it under My account.
         </p>
         <FormError errors={formState.errors} />
+        <SelectField
+          control={control}
+          name="role"
+          label="Role"
+          options={[
+            { value: 'viewer', label: roleLabels.viewer },
+            { value: 'encoder', label: roleLabels.encoder },
+          ]}
+          required
+        />
         <TextField control={control} name="name" label="Name" autoComplete="off" required />
         <TextField
           control={control}
@@ -104,7 +116,7 @@ function AddViewerModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function RemoveViewerModal({ user, onClose }: { user: Row; onClose: () => void }) {
+function RemoveUserModal({ user, onClose }: { user: Row; onClose: () => void }) {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -126,14 +138,14 @@ function RemoveViewerModal({ user, onClose }: { user: Row; onClose: () => void }
     <Modal
       open
       onClose={onClose}
-      title="Remove viewer?"
+      title="Remove user?"
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>
           <Button variant="danger" loading={busy} onClick={() => void onRemove()}>
-            Remove viewer
+            Remove user
           </Button>
         </>
       }
@@ -198,7 +210,11 @@ export function UsersPage() {
       id: 'role',
       header: 'Role',
       cell: (r) =>
-        r.role === 'owner' ? <Badge tone="info">Owner</Badge> : <Badge>Viewer (read-only)</Badge>,
+        r.role === 'owner' ? (
+          <Badge tone="info">Owner</Badge>
+        ) : (
+          <Badge tone={r.role === 'encoder' ? 'warning' : 'neutral'}>{roleLabels[r.role]}</Badge>
+        ),
     },
     {
       id: '2fa',
@@ -235,7 +251,7 @@ export function UsersPage() {
             <Link to="/account" className={buttonClass('secondary')}>
               My password and 2FA
             </Link>
-            <Button onClick={() => setDialog({ kind: 'add' })}>Add viewer</Button>
+            <Button onClick={() => setDialog({ kind: 'add' })}>Add user</Button>
           </>
         }
       />
@@ -252,9 +268,9 @@ export function UsersPage() {
         loading={users.isPending}
         emptyTitle="No users"
       />
-      {dialog?.kind === 'add' ? <AddViewerModal onClose={() => setDialog(null)} /> : null}
+      {dialog?.kind === 'add' ? <AddUserModal onClose={() => setDialog(null)} /> : null}
       {dialog?.kind === 'remove' ? (
-        <RemoveViewerModal user={dialog.user} onClose={() => setDialog(null)} />
+        <RemoveUserModal user={dialog.user} onClose={() => setDialog(null)} />
       ) : null}
     </>
   );

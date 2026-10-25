@@ -8,6 +8,17 @@ every statutory figure kept as versioned data you can verify and update.
 > Not affiliated with SSS, PhilHealth, Pag-IBIG or BIR. Verify the bundled rates against the
 > latest circulars before your first live payroll (the app reminds you until you do).
 
+## Users and pay schedules
+
+- **Roles.** The owner can change everything. A **viewer** has read-only access. An **encoder**
+  can add and edit employees, but every change waits under **Approvals** until the owner
+  approves it (the owner sees a field-by-field diff; rejections need a reason). Government IDs
+  and account numbers stay masked for viewers and encoders.
+- **Twice-weekly payouts.** An employee can be on the standard schedule (from Settings) or on
+  twice-weekly pay. Wednesday pays Sunday to Wednesday; Saturday pays Thursday to Saturday.
+  Tax is withheld every payout (annual table ÷ 104). SSS, PhilHealth and Pag-IBIG come off the
+  last payout of the month, on that month's actual pay.
+
 ## Deploying
 
 See **[deploy/README.md](deploy/README.md)** — one script on an aaPanel (or any Linux) server,

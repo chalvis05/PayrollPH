@@ -2,17 +2,17 @@ import { EmployeeInputSchema, EmployeeStatusSchema } from '@payrollph/shared';
 import { asc, eq, sql } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
-import { dependents, employeeAllowances, employees, loans, payslips } from '../db/schema';
+import { employees, loans, payslips } from '../db/schema';
 import { writeAudit } from '../lib/audit';
 import { conflict, errorResponses, IdParamsSchema, notFound, OkSchema } from '../lib/http';
 import { requireOwner, requireUser } from '../plugins/auth';
 import {
-  assertCapAllowsActive,
   auditSnapshot,
+  createEmployee,
   EmployeeDetailSchema,
-  employeeColumns,
   EmployeeListItemSchema,
   loadEmployeeDetail,
+  replaceEmployee,
   toListItem,
 } from '../services/employees';
 
@@ -74,32 +74,9 @@ export const employeeRoutes: FastifyPluginAsyncZod = async (app) => {
     async (request, reply) => {
       const me = requireOwner(request);
       const input = request.body;
-      const id = await app.db.transaction(async (tx) => {
-        if (input.status === 'active') await assertCapAllowsActive(tx);
-        const [row] = await tx
-          .insert(employees)
-          .values(employeeColumns(input, app.cipher))
-          .returning({ id: employees.id });
-        if (!row) throw new Error('Employee insert returned no row');
-        if (input.allowances.length > 0) {
-          await tx
-            .insert(employeeAllowances)
-            .values(input.allowances.map((a) => ({ ...a, employeeId: row.id })));
-        }
-        if (input.dependents.length > 0) {
-          await tx
-            .insert(dependents)
-            .values(input.dependents.map((d) => ({ ...d, employeeId: row.id })));
-        }
-        await writeAudit(tx, {
-          actorId: me.id,
-          action: 'employee.create',
-          entity: 'employee',
-          entityId: row.id,
-          after: auditSnapshot(input),
-        });
-        return row.id;
-      });
+      const id = await app.db.transaction((tx) =>
+        createEmployee(tx, app.cipher, input, { actorId: me.id }),
+      );
       const detail = await loadEmployeeDetail(app.db, app.cipher, id, false);
       if (!detail) throw notFound('Employee');
       return reply.status(201).send(detail);
@@ -121,45 +98,9 @@ export const employeeRoutes: FastifyPluginAsyncZod = async (app) => {
       const me = requireOwner(request);
       const { id } = request.params;
       const input = request.body;
-      await app.db.transaction(async (tx) => {
-        const before = await loadEmployeeDetail(tx, app.cipher, id, false);
-        if (!before) throw notFound('Employee');
-        if (input.status === 'active' && before.status !== 'active') {
-          await assertCapAllowsActive(tx, id);
-        }
-        await tx
-          .update(employees)
-          .set(employeeColumns(input, app.cipher))
-          .where(eq(employees.id, id));
-        await tx.delete(employeeAllowances).where(eq(employeeAllowances.employeeId, id));
-        await tx.delete(dependents).where(eq(dependents.employeeId, id));
-        if (input.allowances.length > 0) {
-          await tx
-            .insert(employeeAllowances)
-            .values(input.allowances.map((a) => ({ ...a, employeeId: id })));
-        }
-        if (input.dependents.length > 0) {
-          await tx
-            .insert(dependents)
-            .values(input.dependents.map((d) => ({ ...d, employeeId: id })));
-        }
-        const {
-          sensitiveMasked: _m,
-          missingGovIds: _g,
-          id: _i,
-          createdAt: _c,
-          updatedAt: _u,
-          ...prev
-        } = before;
-        await writeAudit(tx, {
-          actorId: me.id,
-          action: 'employee.update',
-          entity: 'employee',
-          entityId: id,
-          before: auditSnapshot(prev),
-          after: auditSnapshot(input),
-        });
-      });
+      await app.db.transaction((tx) =>
+        replaceEmployee(tx, app.cipher, id, input, { actorId: me.id }),
+      );
       const detail = await loadEmployeeDetail(app.db, app.cipher, id, false);
       if (!detail) throw notFound('Employee');
       return detail;

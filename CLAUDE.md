@@ -60,6 +60,7 @@ Self-hosted PH payroll for personal use (≤25 active employees). Full plan: `PL
 - [x] Phase 3 — API routes, OpenAPI (62 paths), typed client, 105 route tests
 - [x] Phase 4 — web UI (all screens), browser-reviewed against the dev API
 - [x] Phase 5 — Docker images, deploy.sh, aaPanel README, Playwright smoke test (verified on a clean copy against PG 18)
+- [x] Encoder role (employee changes need owner approval) and twice-weekly Wed/Sat payouts
 
 ## Gotchas learned
 

@@ -4,9 +4,9 @@ import { and, eq, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Db } from '../db/client';
 import { dependents, employeeAllowances, employees, settings } from '../db/schema';
-import { maskTail, type DbOrTx } from '../lib/audit';
+import { maskTail, writeAudit, type DbOrTx } from '../lib/audit';
 import type { FieldCipher } from '../lib/crypto';
-import { conflict } from '../lib/http';
+import { conflict, notFound } from '../lib/http';
 
 export type EmployeeRow = typeof employees.$inferSelect;
 
@@ -35,6 +35,7 @@ export const EmployeeListItemSchema = z.object({
   position: z.string().nullable(),
   employmentType: EmployeeSchema.shape.employmentType,
   payType: EmployeeSchema.shape.payType,
+  paySchedule: z.enum(['standard', 'twice_weekly']),
   baseRate: z.string(),
   dailyFactor: z.number().int(),
   region: z.string(),
@@ -65,6 +66,7 @@ export function toListItem(row: EmployeeRow): EmployeeListItem {
     position: row.position,
     employmentType: row.employmentType,
     payType: row.payType,
+    paySchedule: row.paySchedule,
     baseRate: row.baseRate,
     dailyFactor: row.dailyFactor,
     region: row.region,
@@ -113,6 +115,7 @@ export async function loadEmployeeDetail(
     tin: reveal(row.tinEnc),
     employmentType: row.employmentType,
     payType: row.payType,
+    paySchedule: row.paySchedule,
     baseRate: row.baseRate,
     dailyFactor: row.dailyFactor as EmployeeDetail['dailyFactor'],
     restDays: row.restDays,
@@ -177,6 +180,7 @@ export function employeeColumns(e: EmployeeInput, cipher: FieldCipher) {
     tinEnc: cipher.encryptNullable(e.tin),
     employmentType: e.employmentType,
     payType: e.payType,
+    paySchedule: e.paySchedule,
     baseRate: e.baseRate,
     dailyFactor: e.dailyFactor,
     restDays: e.restDays,
@@ -212,4 +216,90 @@ export async function assertCapAllowsActive(db: DbOrTx | Db, excludeId?: string)
       { active, cap },
     );
   }
+}
+
+/** Who made a change, for the audit entry (approvals name the requester in `reason`). */
+export interface ChangeActor {
+  actorId: string | null;
+  reason?: string | null;
+}
+
+/** Insert an employee with allowances and dependents, enforcing the cap. Returns the id. */
+export async function createEmployee(
+  tx: DbOrTx,
+  cipher: FieldCipher,
+  input: EmployeeInput,
+  actor: ChangeActor,
+): Promise<string> {
+  if (input.status === 'active') await assertCapAllowsActive(tx);
+  const [row] = await tx
+    .insert(employees)
+    .values(employeeColumns(input, cipher))
+    .returning({ id: employees.id });
+  if (!row) throw new Error('Employee insert returned no row');
+  if (input.allowances.length > 0) {
+    await tx
+      .insert(employeeAllowances)
+      .values(input.allowances.map((a) => ({ ...a, employeeId: row.id })));
+  }
+  if (input.dependents.length > 0) {
+    await tx.insert(dependents).values(input.dependents.map((d) => ({ ...d, employeeId: row.id })));
+  }
+  await writeAudit(tx, {
+    actorId: actor.actorId,
+    action: 'employee.create',
+    entity: 'employee',
+    entityId: row.id,
+    reason: actor.reason ?? null,
+    after: auditSnapshot(input),
+  });
+  return row.id;
+}
+
+/** The current record as an EmployeeInput (decrypted), for diffs and "keep current" values. */
+export function detailToInput(d: EmployeeDetail): EmployeeInput {
+  const {
+    sensitiveMasked: _m,
+    missingGovIds: _g,
+    id: _i,
+    createdAt: _c,
+    updatedAt: _u,
+    ...rest
+  } = d;
+  return rest;
+}
+
+/** Replace an employee record (allowances and dependents included), enforcing the cap. */
+export async function replaceEmployee(
+  tx: DbOrTx,
+  cipher: FieldCipher,
+  id: string,
+  input: EmployeeInput,
+  actor: ChangeActor,
+): Promise<void> {
+  const before = await loadEmployeeDetail(tx, cipher, id, false);
+  if (!before) throw notFound('Employee');
+  if (input.status === 'active' && before.status !== 'active') {
+    await assertCapAllowsActive(tx, id);
+  }
+  await tx.update(employees).set(employeeColumns(input, cipher)).where(eq(employees.id, id));
+  await tx.delete(employeeAllowances).where(eq(employeeAllowances.employeeId, id));
+  await tx.delete(dependents).where(eq(dependents.employeeId, id));
+  if (input.allowances.length > 0) {
+    await tx
+      .insert(employeeAllowances)
+      .values(input.allowances.map((a) => ({ ...a, employeeId: id })));
+  }
+  if (input.dependents.length > 0) {
+    await tx.insert(dependents).values(input.dependents.map((d) => ({ ...d, employeeId: id })));
+  }
+  await writeAudit(tx, {
+    actorId: actor.actorId,
+    action: 'employee.update',
+    entity: 'employee',
+    entityId: id,
+    reason: actor.reason ?? null,
+    before: auditSnapshot(detailToInput(before)),
+    after: auditSnapshot(input),
+  });
 }

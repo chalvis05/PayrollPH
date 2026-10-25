@@ -1,4 +1,4 @@
-import { CreateViewerSchema, UserSchema } from '@payrollph/shared';
+import { CreateUserSchema, UserSchema } from '@payrollph/shared';
 import argon2 from 'argon2';
 import { asc, eq } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
@@ -33,8 +33,8 @@ export const userRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         tags: ['users'],
-        summary: 'Add a read-only viewer',
-        body: CreateViewerSchema,
+        summary: 'Add a read-only viewer or an encoder (submits employee changes for approval)',
+        body: CreateUserSchema,
         response: { 201: UserSchema, ...errorResponses },
       },
     },
@@ -47,7 +47,7 @@ export const userRoutes: FastifyPluginAsyncZod = async (app) => {
           name: request.body.name,
           email: request.body.email,
           passwordHash,
-          role: 'viewer',
+          role: request.body.role,
         })
         .returning();
       if (!created) throw new Error('Viewer insert returned no row');
@@ -67,7 +67,7 @@ export const userRoutes: FastifyPluginAsyncZod = async (app) => {
     {
       schema: {
         tags: ['users'],
-        summary: 'Remove a viewer (the owner cannot be removed)',
+        summary: 'Remove a viewer or encoder (the owner cannot be removed)',
         params: IdParamsSchema,
         response: { 200: OkSchema, ...errorResponses },
       },

@@ -195,4 +195,5 @@ export const RUN_KIND_LABELS: Record<RunRow['kind'], string> = {
   monthly: 'Monthly',
   thirteenth_month: '13th month',
   final_pay: 'Final pay',
+  twice_weekly: 'Twice-weekly payout',
 };

@@ -1,8 +1,12 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { EmployeeInputSchema, type EmployeeInput } from '@payrollph/shared';
+import {
+  EmployeeChangeInputSchema,
+  EmployeeInputSchema,
+  type EmployeeInput,
+} from '@payrollph/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
-import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
+import { Controller, useFieldArray, useForm, useWatch, type Resolver } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router';
 import type { z } from 'zod';
 import { api, errorMessage, unwrap } from '../api/client';
@@ -21,19 +25,21 @@ import {
 } from '../components/forms';
 import { PageHeader } from '../components/PageHeader';
 import { Spinner } from '../components/Spinner';
-import { useIsOwner } from '../lib/auth';
+import { useIsEncoder, useIsOwner } from '../lib/auth';
 import { applyServerError } from '../lib/forms';
 import {
   dailyFactorLabels,
   employmentTypeLabels,
   optionsFrom,
+  payScheduleLabels,
   payTypeLabels,
   REGIONS,
   weekdayLabels,
 } from '../lib/labels';
 
-type FormIn = z.input<typeof EmployeeInputSchema>;
-type FormOut = z.output<typeof EmployeeInputSchema>;
+// Encoders submit EmployeeChangeInput (masked IDs = unchanged); it is a superset of EmployeeInput.
+type FormIn = z.input<typeof EmployeeChangeInputSchema>;
+type FormOut = z.output<typeof EmployeeChangeInputSchema>;
 type Detail = ResponseOf<'/api/employees/{id}', 'get'>;
 
 const empty: FormIn = {
@@ -56,6 +62,7 @@ const empty: FormIn = {
   tin: null,
   employmentType: 'regular',
   payType: 'monthly',
+  paySchedule: 'standard',
   baseRate: '',
   dailyFactor: 261,
   restDays: [6, 7],
@@ -90,7 +97,8 @@ export function EmployeeFormPage() {
   const { id } = useParams();
   const isNew = id === undefined;
   const isOwner = useIsOwner();
-  const readOnly = !isOwner;
+  const isEncoder = useIsEncoder();
+  const readOnly = !isOwner && !isEncoder;
   const navigate = useNavigate();
   const qc = useQueryClient();
 
@@ -101,7 +109,9 @@ export function EmployeeFormPage() {
   });
 
   const { control, handleSubmit, formState, setError, reset } = useForm<FormIn, unknown, FormOut>({
-    resolver: zodResolver(EmployeeInputSchema),
+    resolver: (isEncoder
+      ? zodResolver(EmployeeChangeInputSchema)
+      : zodResolver(EmployeeInputSchema)) as Resolver<FormIn, unknown, FormOut>,
     defaultValues: empty,
   });
   useEffect(() => {
@@ -125,6 +135,22 @@ export function EmployeeFormPage() {
     return <Banner tone="danger">{errorMessage(existing.error)}</Banner>;
 
   const onSubmit = async (body: FormOut) => {
+    if (isEncoder) {
+      try {
+        await unwrap(
+          api.POST('/api/employee-requests/', {
+            body: { employeeId: isNew ? null : (id ?? null), data: body },
+          }),
+        );
+        await qc.invalidateQueries({ queryKey: ['employee-requests'] });
+        await qc.invalidateQueries({ queryKey: ['dashboard'] });
+        void navigate('/approvals');
+      } catch (err) {
+        applyServerError(err, setError);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      return;
+    }
     try {
       const saved = isNew
         ? await unwrap(api.POST('/api/employees/', { body }))
@@ -153,7 +179,14 @@ export function EmployeeFormPage() {
             : existing.data?.employeeNo
         }
       />
-      {existing.data?.sensitiveMasked ? (
+      {isEncoder ? (
+        <Banner tone="info" className="mb-4" title="Changes need the owner's approval">
+          Submitting sends this to the owner under Approvals; nothing changes until they approve it.
+          {existing.data?.sensitiveMasked
+            ? ' Government IDs and account numbers shown as •••• stay as they are unless you type a new one.'
+            : ''}
+        </Banner>
+      ) : existing.data?.sensitiveMasked ? (
         <Banner tone="info" className="mb-4">
           Government IDs and account numbers are masked for viewers.
         </Banner>
@@ -263,6 +296,14 @@ export function EmployeeFormPage() {
                 name="payType"
                 label="Pay type"
                 options={optionsFrom(payTypeLabels)}
+                required
+              />
+              <SelectField
+                control={control}
+                name="paySchedule"
+                label="Pay schedule"
+                options={optionsFrom(payScheduleLabels)}
+                hint="Twice weekly: paid every Wednesday (Sun–Wed) and Saturday (Thu–Sat)."
                 required
               />
               <MoneyField
@@ -526,7 +567,7 @@ export function EmployeeFormPage() {
               Cancel
             </Button>
             <Button type="submit" loading={formState.isSubmitting}>
-              {isNew ? 'Add employee' : 'Save changes'}
+              {isEncoder ? 'Submit for approval' : isNew ? 'Add employee' : 'Save changes'}
             </Button>
           </div>
         )}

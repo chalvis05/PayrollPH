@@ -9,7 +9,7 @@ import { Banner } from '../components/Banner';
 import { buttonClass } from '../components/Button';
 import { DataTable, type DataTableColumn } from '../components/DataTable';
 import { PageHeader } from '../components/PageHeader';
-import { useIsOwner } from '../lib/auth';
+import { useIsEncoder, useIsOwner } from '../lib/auth';
 import { formatPeso } from '../lib/format';
 import { employmentTypeLabels, payTypeLabels } from '../lib/labels';
 
@@ -55,6 +55,8 @@ const columns: DataTableColumn<Row>[] = [
 
 export function EmployeesPage() {
   const isOwner = useIsOwner();
+  const isEncoder = useIsEncoder();
+  const canPropose = isOwner || isEncoder;
   const navigate = useNavigate();
   const [status, setStatus] = useState<EmployeeStatus | ''>('active');
   const employees = useQuery({
@@ -78,7 +80,7 @@ export function EmployeesPage() {
             : undefined
         }
         actions={
-          isOwner ? (
+          canPropose ? (
             <Link to="/employees/new" className={buttonClass('primary')}>
               Add employee
             </Link>
