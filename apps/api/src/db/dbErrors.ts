@@ -57,8 +57,27 @@ export function describeDbError(err: unknown, target: string): DescribedDbError 
   if (!message) message = err instanceof Error ? err.message : String(err);
   return {
     summary: `${message}${code ? ` [${code}]` : ''} (connecting to ${target})`,
-    hint: code ? (hints[code] ?? null) : null,
+    hint: pgHbaHint(message) ?? (code ? (hints[code] ?? null) : null),
   };
+}
+
+/**
+ * For "no pg_hba.conf entry for host "172.20.0.2", user "u", database "d"", give the exact
+ * rule to add. Docker networks are allocated from 172.16.0.0/12, so allow that whole range
+ * for Docker clients; any other client gets a rule for its own address.
+ */
+function pgHbaHint(message: string): string | null {
+  const m = /no pg_hba\.conf entry for host "([^"]+)", user "([^"]+)", database "([^"]+)"/.exec(
+    message,
+  );
+  if (!m) return null;
+  const [, host = '', user = '', db = ''] = m;
+  const docker = /^172\.(1[6-9]|2\d|3[01])\./.test(host);
+  const address = docker ? '172.16.0.0/12' : `${host}/32`;
+  return (
+    `Add this line to the pg_hba.conf PostgreSQL reads (SHOW hba_file;), above any reject lines, ` +
+    `then run SELECT pg_reload_conf();\n  host  ${db}  ${user}  ${address}  md5`
+  );
 }
 
 /** `user@host:port/db` from a postgres URL, without the password. */

@@ -197,9 +197,11 @@ ${BOLD}PayrollPH could not use the server's PostgreSQL 18.${RESET} Do this once,
 
   2. Let the Docker bridge network connect. In postgresql.conf:
        listen_addresses = 'localhost,172.17.0.1'
-     and in pg_hba.conf:
-       host  ${db:-payrollph}  ${user:-payrollph}  172.16.0.0/12  scram-sha-256
-     then restart PostgreSQL (aaPanel → Databases → PgSQL → restart).
+     and in the pg_hba.conf PostgreSQL reads (psql -Atc "SHOW hba_file;") — aaPanel only adds
+     127.0.0.1 lines, but the app connects from the Docker range:
+       host  ${db:-payrollph}  ${user:-payrollph}  172.16.0.0/12  md5
+     then restart PostgreSQL (aaPanel → App Store → PostgreSQL Manager → Restart);
+     a pg_hba.conf-only change just needs: SELECT pg_reload_conf();
 
   3. If the firewall blocks it, allow 172.16.0.0/12 → port ${port:-5432}.
 

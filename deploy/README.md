@@ -69,15 +69,29 @@ aaPanel ▸ Databases ▸ PgSQL ▸ Settings (or edit the files below over SSH)
 listen_addresses = 'localhost,172.17.0.1'
 ```
 
-`pg_hba.conf` (same folder) — add this line above any `reject` lines:
+`pg_hba.conf` — the app connects from its Compose network, which Docker allocates somewhere in
+`172.16.0.0/12` (e.g. `172.20.0.2`), **not** from `127.0.0.1`. When aaPanel creates a database
+it only adds `127.0.0.1` lines for it, so add a rule for the Docker range to the file PostgreSQL
+actually reads (it may differ from the one you expect), above any `reject` lines. `md5` matches
+aaPanel's own lines and works whether the password is stored as md5 or SCRAM:
 
-```
-host  payrollph  payrollph  172.16.0.0/12  scram-sha-256
+```bash
+HBA=$(sudo -u postgres /www/server/pgsql/bin/psql -Atc "SHOW hba_file;")
+echo "host  payrollph  payrollph  172.16.0.0/12  md5" | sudo tee -a "$HBA"
+sudo -u postgres /www/server/pgsql/bin/psql -c "SELECT pg_reload_conf();"
 ```
 
-Restart PostgreSQL (`aaPanel ▸ App Store ▸ PostgreSQL Manager ▸ Restart`, or
-`systemctl restart postgresql`). Port 5432 must **not** be opened in the aaPanel firewall:
-only the local Docker network needs it.
+Check it is loaded (expect a row with `172.16.0.0` / `255.240.0.0` and an empty `error`):
+
+```bash
+sudo -u postgres /www/server/pgsql/bin/psql -c "SELECT line_number, address, netmask, auth_method, error FROM pg_hba_file_rules WHERE 'payrollph' = ANY(user_name) ORDER BY line_number;"
+```
+
+`pg_hba.conf` changes only need a reload; the `listen_addresses` change needs a restart
+(`aaPanel ▸ App Store ▸ PostgreSQL Manager ▸ Restart`, or `systemctl restart postgresql`).
+aaPanel may rewrite `pg_hba.conf` when you manage databases in its UI — if migrations later fail
+with `no pg_hba.conf entry`, re-check that the line is still there. Port 5432 must **not** be
+opened in the aaPanel firewall: only the local Docker network needs it.
 
 ## 2. Get the code
 
